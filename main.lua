@@ -270,7 +270,6 @@ function find_intersections(points, y)
 
     if (a.y < y and b.y >= y) or (b.y < y and a.y >= y) then
       local x = a.x + (((y - a.y) / (b.y - a.y)) * (b.x - a.x))
-      x = math.floor(x)
 
       table.insert(xlist, x)
     end
@@ -305,7 +304,9 @@ function fillpoly(poly)
     sort(xlist)
 
     for i = 1, #xlist - 1, 2 do
-      love.graphics.line(xlist[i], y, xlist[i + 1], y)
+      local x1 = math.floor(xlist[i])
+      local x2 = math.ceil(xlist[i + 1])
+      love.graphics.line(x1, y, x2, y)
     end
   end
 
