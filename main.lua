@@ -172,6 +172,10 @@ function love.mousepressed(x, y, button)
 end
 
 function finalize_wip()
+  if #wip.points < 3 then
+    return
+  end
+
   -- finalize the WIP polygon
   table.insert(polygons,
     {
@@ -328,6 +332,11 @@ function render_polygons()
     fillpoly(poly)
   end
 
+  if #wip.points > 0 then
+    -- draw the WIP polygon
+    draw_wip_poly()
+  end
+
   love.graphics.setCanvas()
 end
 
@@ -355,6 +364,8 @@ function draw_status()
   if #wip.points > 0 then
     love.graphics.print('points: ' .. #wip.points, x, y + lineh * 3)
   end
+
+  love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 115, y)
 end
 
 function draw_cursor()
@@ -435,33 +446,26 @@ function draw_palette()
     palettePos.colorH + lineW)
 end
 
-function draw_tool()
-  love.graphics.push()
-  love.graphics.scale(canvasScale, canvasScale)
-  love.graphics.translate(canvasPos.x, canvasPos.y)
+function draw_wip_poly()
+  love.graphics.setLineWidth(1)
+  love.graphics.setPointSize(1)
 
-  if cursor.tool == 'draw' then
-    -- draw the partial polygon outline
-    love.graphics.setLineWidth(1)
-    for i = 1, #wip.points do
-      local a = wip.points[i]
-      local b
-      if i < #wip.points then
-        b = wip.points[i + 1]
-      else
-        b = {x = cursor.x, y = cursor.y}
-      end
-
-      love.graphics.setColor(palette[cursor.color])
-      love.graphics.line(a.x, a.y, b.x, b.y)
-
-      -- draw a handle on this point
-      love.graphics.setColor(255, 255, 255)
-      love.graphics.points(a.x, a.y)
+  for i = 1, #wip.points do
+    local a = wip.points[i]
+    local b
+    if i < #wip.points then
+      b = wip.points[i + 1]
+    else
+      b = {x = cursor.x, y = cursor.y}
     end
-  end
 
-  love.graphics.pop()
+    love.graphics.setColor(palette[cursor.color])
+    love.graphics.line(a.x, a.y, b.x, b.y)
+
+    -- draw a handle on this point
+    love.graphics.setColor(255, 255, 255)
+    love.graphics.points(a.x, a.y)
+  end
 end
 
 function update_input()
@@ -480,8 +484,8 @@ function love.draw()
   love.graphics.setCanvas()
   love.graphics.clear(10, 10, 10)
 
-  -- draw the current tool's operation
-  draw_tool()
+  -- render all the polygons to the canvas
+  render_polygons()
 
   -- draw the canvas
   draw_canvas()
@@ -491,6 +495,5 @@ function love.draw()
   draw_palette()
 
   -- draw the cursor
-  draw_tool()
   draw_cursor()
 end
