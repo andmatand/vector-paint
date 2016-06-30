@@ -38,12 +38,18 @@ function love.load()
   cursor = {
     x = math.floor(CANVAS_W / 2),
     y = math.floor(CANVAS_H / 2),
+    vx = 0,
+    vy = 0,
     tool = 'draw',
     color = 9,
+    selectedPolygons = {}
   }
 
-  wip = {
-    points = {}
+  drawingPoints = {}
+
+  selectionFlash = {
+    time = 0,
+    isOn = true
   }
 
   polygons = {}
@@ -58,12 +64,114 @@ function love.load()
     }
   }
 
-  -- draw on the canvas
-  render_polygons()
+  undoHistory = {}
+end
+
+function copy_table(t)
+  local t2 = {}
+
+  for k, v in pairs(t) do
+    if type(v) == 'table' then
+      t2[k] = copy_table(v)
+    else
+      t2[k] = v
+    end
+  end
+
+  return t2
+end
+
+function update_cursor()
+  local delta = .25
+  local friction = .80
+
+  if not cursor.fineMode then
+    if love.keyboard.isDown('left') then
+      cursor.vx = cursor.vx - delta
+    elseif love.keyboard.isDown('right') then
+      cursor.vx = cursor.vx + delta
+    elseif love.keyboard.isDown('up') then
+      cursor.vy = cursor.vy - delta
+    elseif love.keyboard.isDown('down') then
+      cursor.vy = cursor.vy + delta
+    end
+  end
+
+  -- apply cursor velocity
+  cursor.x = cursor.x + cursor.vx
+  cursor.y = cursor.y + cursor.vy
+
+  -- apply friction
+  cursor.vx = cursor.vx * friction
+  cursor.vy = cursor.vy * friction
+
+  -- enforce cursor boundaries
+  if cursor.x < 0 then
+    cursor.x = 0
+  elseif cursor.x > CANVAS_W - 1 then
+    cursor.x = CANVAS_W - 1
+  end
+  if cursor.y < 0 then
+    cursor.y = 0
+  elseif cursor.y > CANVAS_H - 1 then
+    cursor.y = CANVAS_H - 1
+  end
+
+  cursor.hoveredPolygon = nil
+  if cursor.tool == 'select polygon' then
+    -- find the top polygon under the cursor
+    local topPoly = find_top_poly(cursor)
+    if topPoly then
+      cursor.hoveredPolygon = topPoly
+    end
+  end
+
+  if love.timer.getTime() > selectionFlash.time + .5 then
+    selectionFlash.time = love.timer.getTime()
+    selectionFlash.isOn = not selectionFlash.isOn
+  end
+end
+
+function reset_selection_flash()
+  selectionFlash.time = love.timer.getTime()
+  selectionFlash.isOn = true
+end
+
+function find_top_poly(point)
+  for i = #polygons, 1, -1 do
+    local poly = polygons[i]
+
+    if point_in_polygon(point, poly) then
+      return poly
+    end
+  end
 end
 
 function love.keypressed(key)
-  if love.keyboard.isDown('lctrl') then
+  -- toggle cursor fine-movement mode
+  if key == 'f' then
+    cursor.fineMode = not cursor.fineMode
+
+    if not cursor.fineMode then
+      -- halt the cursor's current momentum
+      cursor.vx = 0
+      cursor.vy = 0
+    end
+  end
+
+  if cursor.fineMode then
+    if key == 'left' then
+      cursor.x = cursor.x - 1
+    elseif key == 'right' then
+      cursor.x = cursor.x + 1
+    elseif key == 'up' then
+      cursor.y = cursor.y - 1
+    elseif key == 'down' then
+      cursor.y = cursor.y + 1
+    end
+  end
+
+  if love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') then
     if key == 'q' then
       love.event.quit()
     end
@@ -76,24 +184,6 @@ function love.keypressed(key)
     find_best_canvas_scale()
   end
 
-  if key == 'left' then
-    if cursor.x > 0 then
-      cursor.x = cursor.x - 1
-    end
-  elseif key == 'right' then
-    if cursor.x < CANVAS_W - 1 then
-      cursor.x = cursor.x + 1
-    end
-  elseif key == 'up' then
-    if cursor.y > 0 then
-      cursor.y = cursor.y - 1
-    end
-  elseif key == 'down' then
-    if cursor.y < CANVAS_H - 1 then
-      cursor.y = cursor.y + 1
-    end
-  end
-
   if key == '1' then
     if cursor.color > 0 then
       cursor.color = cursor.color - 1
@@ -104,18 +194,66 @@ function love.keypressed(key)
     end
   end
 
-  if cursor.tool == 'draw' then
-    if key == 'z' or key == 'space' then
-      add_point()
-    elseif key == 'return' then
-      finalize_wip()
-    end
+  if key == 'z' or key == 'space' then
+    push_primary_button()
+  elseif key == 'return' then
+    push_secondary_button()
   end
 
-  if key == 'f5' or love.keyboard.isDown('lctrl') and key == 'r' then
+  if key == 'f5' or (love.keyboard.isDown('lctrl') and key == 'r') then
     -- force re-render
     render_polygons()
   end
+
+  if key == 'd' then
+    cursor.tool = 'draw'
+    cursor.selectedPolygons = {}
+  elseif key == 's' then
+    cursor.tool = 'select polygon'
+  end
+
+  if key == 'delete' or key == 'backspace' then
+    save_undo_state()
+    polygons = remove_values_from_table(cursor.selectedPolygons, polygons)
+    cursor.selectedPolygons = {}
+  end
+
+  if key == 'u' then
+    undo()
+  end
+end
+
+function push_primary_button()
+  if cursor.tool == 'draw' then
+    draw_point()
+  elseif cursor.tool == 'select polygon' then
+    cursor.selectedPolygons = {cursor.hoveredPolygon}
+  end
+end
+
+function push_secondary_button()
+  if cursor.tool == 'draw' then
+    finalize_drawing_points()
+  end
+end
+
+function remove_values_from_table(values, t)
+  local t2 = {}
+  for i, v in pairs(t) do
+    local valueIsOkay = true
+    for j, badValue in pairs(values) do
+      if badValue == v then
+        valueIsOkay = false
+        break
+      end
+    end
+
+    if valueIsOkay then
+      table.insert(t2, v)
+    end
+  end
+
+  return t2
 end
 
 function love.mousemoved(x, y)
@@ -154,8 +292,9 @@ end
 
 function love.mousepressed(x, y, button)
   if button == 1 then
-    if cursor.tool == 'draw' and mouseIsOnCanvas then
-      add_point()
+    if mouseIsOnCanvas then
+      push_primary_button()
+      return
     end
 
     local color = get_color_under_mouse(x, y)
@@ -165,26 +304,27 @@ function love.mousepressed(x, y, button)
   end
 
   if button == 2 then
-    if cursor.tool == 'draw' and mouseIsOnCanvas then
-      finalize_wip()
+    if mouseIsOnCanvas then
+      push_secondary_button()
+      return
     end
   end
 end
 
-function finalize_wip()
-  if #wip.points < 3 then
+function finalize_drawing_points()
+  if #drawingPoints < 3 then
     return
   end
 
   -- finalize the WIP polygon
   table.insert(polygons,
     {
-      points = wip.points,
+      points = drawingPoints,
       color = cursor.color
     })
 
   -- clear the WIP points
-  wip.points = {}
+  drawingPoints = {}
 
   -- re-render the canvas with the new polygon
   render_polygons()
@@ -284,6 +424,31 @@ function find_intersections(points, y)
   return xlist
 end
 
+function point_in_polygon(point, poly)
+  local points = poly.points
+  local x = point.x
+  local y = point.y
+
+  local i = 1
+  local j = #points
+  local c = false
+
+  while i <= #points do
+    if ( ((points[i].y > y) ~= (points[j].y > y)) and
+          (x < (points[j].x - points[i].x) * (y - points[i].y) /
+            (points[j].y - points[i].y) + points[i].x
+          )
+       ) then
+       c = not c
+    end
+
+    j = i
+    i = i + 1
+  end
+
+  return c
+end
+
 function sort(t)
   for i = 2, #t do
     local j = i
@@ -294,9 +459,9 @@ function sort(t)
     end
   end
 end
-
-function fillpoly(poly)
-  love.graphics.setColor(palette[poly.color])
+function fillpoly(poly, rgba, outline)
+  love.graphics.setColor(rgba)
+  love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
 
   -- find the highest y
@@ -310,16 +475,12 @@ function fillpoly(poly)
     for i = 1, #xlist - 1, 2 do
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
-      love.graphics.line(x1, y, x2, y)
-    end
-  end
 
-  if poly.isSelected then
-    -- draw dots on the points
-    love.graphics.setPointSize(1)
-    for i, p in pairs(poly.points) do
-      love.graphics.setColor(255, 255, 255)
-      love.graphics.points(p.x, p.y)
+      if outline then
+        love.graphics.points(x1, y, x2, y)
+      else
+        love.graphics.line(x1, y, x2, y)
+      end
     end
   end
 end
@@ -329,12 +490,36 @@ function render_polygons()
   love.graphics.clear(0, 0, 0)
 
   for _, poly in pairs(polygons) do
-    fillpoly(poly)
+    fillpoly(poly, palette[poly.color])
   end
 
-  if #wip.points > 0 then
+  love.graphics.setCanvas()
+end
+
+function draw_tool()
+  love.graphics.setCanvas(canvas)
+
+  if #drawingPoints > 0 then
     -- draw the WIP polygon
     draw_wip_poly()
+  end
+
+  -- draw a lowlight overlay on the polygon we are hovering over
+  if cursor.hoveredPolygon then
+    fillpoly(cursor.hoveredPolygon, {255, 255, 255, 100})
+  end
+
+  ---- draw a highlight overlay on the selected polygons
+  --for _, poly in pairs(cursor.selectedPolygons) do
+  --  if selectionFlash.isOn then
+  --    fillpoly(poly, {255, 255, 255, 200})
+  --  end
+  --end
+  -- draw an outline around the selected polygons
+  for _, poly in pairs(cursor.selectedPolygons) do
+    if selectionFlash.isOn then
+      fillpoly(poly, {255, 255, 255, 200}, true)
+    end
   end
 
   love.graphics.setCanvas()
@@ -351,21 +536,50 @@ function draw_canvas()
   love.graphics.pop()
 end
 
+function point_to_string(point)
+  return '(' .. point.x .. ', ' .. point.y .. ')'
+end
+
 function draw_status()
   love.graphics.setColor(255, 255, 255)
   local x = (CANVAS_W * canvasScale) + (canvasMargin * 2)
   local y = canvasMargin
   local lineh = 14
 
-  love.graphics.print('(' .. cursor.x .. ', ' .. cursor.y .. ')', x, y)
+  love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 115, y)
+
+  local cursorDisplayPoint = {
+    x = math.floor(cursor.x),
+    y = math.floor(cursor.y)
+  }
+  love.graphics.print(point_to_string(cursorDisplayPoint), x, y)
 
   love.graphics.print('current tool: ' .. cursor.tool, x, y + lineh * 2)
 
-  if #wip.points > 0 then
-    love.graphics.print('points: ' .. #wip.points, x, y + lineh * 3)
+  if cursor.fineMode then
+    love.graphics.print('fine cursor movement enabled', x + 140, y + lineh * 2)
   end
 
-  love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 115, y)
+  local selectedPolys
+  if #drawingPoints > 0 then
+    selectedPolys = {{points = drawingPoints}}
+  else
+    selectedPolys = cursor.selectedPolygons
+  end
+
+  if selectedPolys then
+    y = 300
+    if #selectedPolys == 1 then
+      love.graphics.print("selected polygon's points: ", x, y)
+      for i, point in pairs(selectedPolys[1].points) do
+        y = y + lineh
+        love.graphics.print(i .. ': ' .. point_to_string(point), x, y)
+      end
+    elseif #selectedPolys > 1 then
+      love.graphics.print(
+        'selected polygons: ' .. #selectedPolys, x, y)
+    end
+  end
 end
 
 function draw_cursor()
@@ -374,8 +588,8 @@ function draw_cursor()
   love.graphics.scale(canvasScale, canvasScale)
   love.graphics.setPointSize(canvasScale)
 
-  local centerX = canvasPos.x + cursor.x + 0.5
-  local centerY = canvasPos.y + cursor.y + 0.5
+  local centerX = canvasPos.x + math.floor(cursor.x) + 0.5
+  local centerY = canvasPos.y + math.floor(cursor.y) + 0.5
 
   local points = {
     {centerX, centerY - 1},
@@ -390,8 +604,14 @@ function draw_cursor()
   love.graphics.pop()
 end
 
-function add_point()
-  table.insert(wip.points, {x = cursor.x, y = cursor.y})
+function draw_point()
+  save_undo_state()
+
+  table.insert(drawingPoints,
+    {
+      x = math.floor(cursor.x),
+      y = math.floor(cursor.y)
+    })
 end
 
 function update_palette()
@@ -447,17 +667,19 @@ function draw_palette()
 end
 
 function draw_wip_poly()
+  local points = {}
+
+  for _, point in pairs(drawingPoints) do
+    table.insert(points, point)
+  end
+  table.insert(points, cursor)
+
   love.graphics.setLineWidth(1)
   love.graphics.setPointSize(1)
 
-  for i = 1, #wip.points do
-    local a = wip.points[i]
-    local b
-    if i < #wip.points then
-      b = wip.points[i + 1]
-    else
-      b = {x = cursor.x, y = cursor.y}
-    end
+  for i = 1, #points - 1 do
+    local a = points[i]
+    local b = points[i + 1]
 
     love.graphics.setColor(palette[cursor.color])
     love.graphics.line(a.x, a.y, b.x, b.y)
@@ -468,14 +690,29 @@ function draw_wip_poly()
   end
 end
 
-function update_input()
-  --if love.keyboard.isDown('left') then
-  --  cursor.x = cursor.x - 1
-  --end
+function undo()
+  -- pop the most recent saved state off the undoHistory
+  local state = table.remove(undoHistory)
+
+  if state then
+    -- apply the saved state
+    polygons = state.polygons
+    drawingPoints = state.drawingPoints
+  else
+    print('no undo history remaining')
+  end
+end
+
+function save_undo_state()
+  local state = {}
+  state.polygons = copy_table(polygons)
+  state.drawingPoints = copy_table(drawingPoints)
+
+  table.insert(undoHistory, state)
 end
 
 function love.update()
-  update_input()
+  update_cursor()
   update_palette()
 end
 
@@ -486,6 +723,9 @@ function love.draw()
 
   -- render all the polygons to the canvas
   render_polygons()
+
+  -- draw the current tool overlays
+  draw_tool()
 
   -- draw the canvas
   draw_canvas()
