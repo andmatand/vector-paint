@@ -42,7 +42,8 @@ function love.load()
     vy = 0,
     tool = 'draw',
     color = 9,
-    selectedPolygons = {}
+    selectedPolygons = {},
+    selectedPoints = {}
   }
 
   drawingPoints = {}
@@ -118,11 +119,20 @@ function update_cursor()
   end
 
   cursor.hoveredPolygon = nil
+  cursor.hoveredPoint = nil
+
   if cursor.tool == 'select polygon' then
     -- find the top polygon under the cursor
     local topPoly = find_top_poly(cursor)
     if topPoly then
       cursor.hoveredPolygon = topPoly
+    end
+  elseif cursor.tool == 'select point' then
+    -- find the top point under the cursor
+    local point, poly = find_nearest_point(cursor)
+    if point then
+      cursor.hoveredPoint = point
+      cursor.hoveredPoly = poly
     end
   end
 
@@ -144,6 +154,36 @@ function find_top_poly(point)
     if point_in_polygon(point, poly) then
       return poly
     end
+  end
+end
+
+function manhattan_distance(a, b)
+  return math.abs(a.x - b.x) + math.abs(b.y - a.y)
+end
+
+function find_nearest_point(cursorPos)
+  local maxDist = 5
+  local closest
+
+  for i, poly in pairs(polygons) do
+    for j, point in pairs(poly.points) do
+      local dist = manhattan_distance(cursorPos, point)
+
+      if dist <= maxDist then
+        if closest == nil or dist < closest.dist then
+          closest = {
+            dist = dist,
+            point = point,
+            poly = poly,
+            index = j
+          }
+        end
+      end
+    end
+  end
+
+  if closest then
+    return closest.point, closest.poly, closest.index
   end
 end
 
@@ -208,8 +248,11 @@ function love.keypressed(key)
   if key == 'd' then
     cursor.tool = 'draw'
     cursor.selectedPolygons = {}
+    cursor.selectedPoints = {}
   elseif key == 's' then
     cursor.tool = 'select polygon'
+  elseif key == 'p' then
+    cursor.tool = 'select point'
   end
 
   if key == 'delete' or key == 'backspace' then
@@ -224,10 +267,31 @@ function love.keypressed(key)
 end
 
 function push_primary_button()
+  local shiftIsDown = (love.keyboard.isDown('lshift') or
+    love.keyboard.isDown('rshift'))
+
   if cursor.tool == 'draw' then
     draw_point()
   elseif cursor.tool == 'select polygon' then
-    cursor.selectedPolygons = {cursor.hoveredPolygon}
+    if cursor.hoveredPolygon then
+      if shiftIsDown then
+        table.insert(cursor.selectedPolygons, cursor.hoveredPolygon)
+      else
+        cursor.selectedPolygons = {cursor.hoveredPolygon}
+      end
+    else
+      cursor.selectedPolygons = {}
+    end
+  elseif cursor.tool == 'select point' then
+    if cursor.hoveredPoint then
+      if shiftIsDown then
+        table.insert(cursor.selectedPoints, cursor.hoveredPoint)
+      else
+        cursor.selectedPoints = {cursor.hoveredPoint}
+      end
+    else
+      cursor.selectedPoints = {}
+    end
   end
 end
 
@@ -509,6 +573,14 @@ function draw_tool()
     fillpoly(cursor.hoveredPolygon, {255, 255, 255, 100})
   end
 
+  -- draw a lowlight overlay on the point we are hovering over
+  if cursor.hoveredPoint then
+    love.graphics.setPointSize(5)
+    love.graphics.setColor(255, 255, 255, 100)
+    love.graphics.circle(
+      'line', cursor.hoveredPoint.x, cursor.hoveredPoint.y, 2)
+  end
+
   ---- draw a highlight overlay on the selected polygons
   --for _, poly in pairs(cursor.selectedPolygons) do
   --  if selectionFlash.isOn then
@@ -516,9 +588,18 @@ function draw_tool()
   --  end
   --end
   -- draw an outline around the selected polygons
-  for _, poly in pairs(cursor.selectedPolygons) do
-    if selectionFlash.isOn then
+  if selectionFlash.isOn then
+    for _, poly in pairs(cursor.selectedPolygons) do
       fillpoly(poly, {255, 255, 255, 200}, true)
+    end
+  end
+
+  -- draw a highlight overlay on the point we are hovering over
+  if not selectionFlash.isOn then
+    love.graphics.setPointSize(5)
+    love.graphics.setColor(255, 255, 255, 200)
+    for _, point in pairs(cursor.selectedPoints) do
+      love.graphics.circle('line', point.x, point.y, 1)
     end
   end
 
@@ -554,10 +635,12 @@ function draw_status()
   }
   love.graphics.print(point_to_string(cursorDisplayPoint), x, y)
 
-  love.graphics.print('current tool: ' .. cursor.tool, x, y + lineh * 2)
+  y = y + lineh
+  love.graphics.print('current tool: ' .. cursor.tool, x, y)
 
   if cursor.fineMode then
-    love.graphics.print('fine cursor movement enabled', x + 140, y + lineh * 2)
+    y = y + lineh
+    love.graphics.print('fine cursor movement enabled', x, y)
   end
 
   local selectedPolys
@@ -578,6 +661,14 @@ function draw_status()
     elseif #selectedPolys > 1 then
       love.graphics.print(
         'selected polygons: ' .. #selectedPolys, x, y)
+    end
+  end
+
+  if cursor.selectedPoints then
+    love.graphics.print('selected point(s): ', x, y)
+    for _, point in pairs(cursor.selectedPoints) do
+      y = y + lineh
+      love.graphics.print(point_to_string(point), x, y)
     end
   end
 end
