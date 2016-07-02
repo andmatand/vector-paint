@@ -435,13 +435,68 @@ function love.keypressed(key)
     end
   end
 
+  if key == 'i' then
+    -- If there are exactly two points selected, from the same polygon
+    if #selectedPoints == 2 and
+       selectedPoints[1].poly == selectedPoints[2].poly then
+
+      -- Get the indices of the two selected points
+      local i = find_point_index(selectedPoints[1].point,
+        selectedPoints[1].poly)
+      local j = find_point_index(selectedPoints[2].point,
+        selectedPoints[2].poly)
+
+      local polygon = selectedPoints[1].poly
+
+      -- Put the two indices in ascending order
+      if j < i then
+        j, i = i, j
+      end
+
+      -- if the indices are consecutive
+      if j == i + 1 or (i == 1 and j == #polygon.points) then
+        -- find the midpoint between the two points
+        local midpoint = midpoint(polygon.points[i], polygon.points[j])
+
+        midpoint.x = math.floor(midpoint.x)
+        midpoint.y = math.floor(midpoint.y)
+
+        save_undo_state()
+
+        if i == 1 then
+          newIndex = 1
+        else
+          newIndex = j
+        end
+
+        -- insert the midpoint as a new point in the polygon
+        table.insert(polygon.points, newIndex, midpoint)
+
+        -- select the new point
+        selectedPoints = {
+          {
+            point = polygon.points[newIndex],
+            poly = polygon
+          }
+        }
+      end
+    end
+  end
+
   if key == 'u' then
     undo()
   end
 end
 
+function midpoint(a, b)
+  return {
+    x = (a.x + b.x) / 2,
+    y = (a.y + b.y) / 2
+  }
+end
+
 function select_next_point(sp, direction)
-  -- cycle through points in the same polygon as the currently selected
+  -- Cycle through points in the same polygon as the currently selected
   -- point
   local index = find_point_index(sp.point, sp.poly)
   local poly = sp.poly
