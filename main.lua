@@ -143,9 +143,13 @@ function update_cursor()
   end
 end
 
-function reset_selection_flash()
+function reset_selection_flash(initialValue)
   selectionFlash.time = love.timer.getTime()
-  selectionFlash.isOn = true
+  if initialValue ~= nil then
+    selectionFlash.isOn = initialValue
+  else
+    selectionFlash.isOn = true
+  end
 end
 
 function find_top_poly(point)
@@ -213,7 +217,22 @@ function move_selected_points(xDelta, yDelta)
   end
 end
 
+function set_selected_polygons(points)
+  selectedPolygons = points
+  selectedPoints = {}
+  reset_selection_flash()
+end
+
+function set_selected_points(points)
+  selectedPoints = points
+  selectedPolygons = {}
+  reset_selection_flash(false)
+end
+
 function love.keypressed(key)
+  local shiftIsDown = (love.keyboard.isDown('lshift') or
+    love.keyboard.isDown('rshift'))
+
   -- toggle cursor fine-movement mode
   if key == 'f' then
     cursor.fineMode = not cursor.fineMode
@@ -286,8 +305,8 @@ function love.keypressed(key)
   -- switch tools
   if key == 'd' then
     cursor.tool = 'draw'
-    selectedPolygons = {}
-    selectedPoints = {}
+    set_selected_polygons({})
+    set_selected_points({})
   elseif key == 's' then
     cursor.tool = 'select polygon'
   elseif key == 'p' then
@@ -311,33 +330,75 @@ function love.keypressed(key)
     end
   end
 
-  if cursor.tool == 'select point' then
-    if key == 'tab' then
-      if #selectedPoints == 1 then
-        -- todo
+  if key == 'tab' then
+    if cursor.tool == 'select polygon' then
+      if #selectedPolygons == 0 then
+        if #selectedPoints == 1 then
+          local index, poly = find_point_index(selectedPoints[1])
+          set_selected_polygons({poly})
+        else
+          set_selected_polygons({polygons[1]})
+        end
+      elseif #selectedPolygons == 1 then
+        local index = find_polygon_index(selectedPolygons[1])
+
+        if index then
+          local nextIndex
+          if shiftIsDown then
+            nextIndex = index - 1
+          else
+            nextIndex = index + 1
+          end
+          if nextIndex < 1 then
+            nextIndex = #polygons
+          elseif nextIndex > #polygons then
+            nextIndex = 1
+          end
+
+          set_selected_polygons({polygons[nextIndex]})
+        end
+      end
+    end
+
+    if cursor.tool == 'select point' then
+      if #selectedPoints == 0 then
+        if #selectedPolygons == 1 then
+          set_selected_points({selectedPolygons[1].points[1]})
+        end
+      elseif #selectedPoints == 1 then
         -- cycle through points in the same polygon as the currently selected
         -- point
-        --local nextPointIndex = selectedPoints[0].index + 1
+        local index, poly = find_point_index(selectedPoints[1])
+        if index then
+          local nextIndex
+          if shiftIsDown then
+            nextIndex = index - 1
+          else
+            nextIndex = index + 1
+          end
 
-        --if nextPointIndex > #selectedPoints[0].poly.points then
-        --  nextPointIndex = 1
-        --end
+          if nextIndex < 1 then
+            nextIndex = #poly.points
+          elseif nextIndex > #poly.points then
+            nextIndex = 1
+          end
 
-        --selectedPoints[0] = selectedPoints[0].poly.points[nextPointIndex]
+          set_selected_points({poly.points[nextIndex]})
+        end
       end
     end
   end
 
   if key == 'escape' then
     drawingPoints = {}
-    selectedPolygons = {}
-    selectedPoints = {}
+    set_selected_polygons({})
+    set_selected_points({})
   end
 
   if key == 'delete' or key == 'backspace' then
     save_undo_state()
     polygons = remove_values_from_table(selectedPolygons, polygons)
-    selectedPolygons = {}
+    set_selected_polygons({})
   end
 
   if key == 'u' then
@@ -363,6 +424,20 @@ function find_polygon_index(poly)
   end
 end
 
+function find_point_index(point)
+  -- check polygons in front-to-back order
+  for i = #polygons, 1, -1 do
+    local poly = polygons[i]
+
+    for j = 1, #poly.points do
+      local p = poly.points[j]
+      if point.x == p.x and point.y == p.y then
+        return j, poly
+      end
+    end
+  end
+end
+
 function pull_polygon_forward(poly)
   -- find the index of this polygon
   local index = find_polygon_index(poly)
@@ -380,22 +455,16 @@ function push_primary_button()
   if cursor.tool == 'draw' then
     draw_point()
   elseif cursor.tool == 'select polygon' then
-    -- unselect any selected points
-    selectedPoints = {}
-
     if cursor.hoveredPolygon then
       if shiftIsDown then
         table.insert(selectedPolygons, cursor.hoveredPolygon)
       else
-        selectedPolygons = {cursor.hoveredPolygon}
+        set_selected_polygons({cursor.hoveredPolygon})
       end
     else
-      selectedPolygons = {}
+      set_selected_polygons({})
     end
   elseif cursor.tool == 'select point' then
-    -- unselect any selected polygons
-    selectedPolygons = {}
-
     if cursor.hoveredPoint then
       if shiftIsDown then
         local existingIndex = find_point_index_in_table(
@@ -410,10 +479,10 @@ function push_primary_button()
           table.insert(selectedPoints, cursor.hoveredPoint)
         end
       else
-        selectedPoints = {cursor.hoveredPoint}
+        set_selected_points({cursor.hoveredPoint})
       end
     else
-      selectedPoints = {}
+      set_selected_points({})
     end
   end
 end
@@ -959,8 +1028,8 @@ function undo()
     drawingPoints = state.drawingPoints
 
     -- clear selections because they point to non-existant objects now
-    selectedPolygons = {}
-    selectedPoints = {}
+    set_selected_polygons({})
+    set_selected_points({})
   else
     print('no undo history remaining')
   end
