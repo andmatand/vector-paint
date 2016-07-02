@@ -69,6 +69,16 @@ function love.load()
   undoHistory = {}
 end
 
+function shallow_copy_table(t)
+  local t2 = {}
+
+  for k, v in pairs(t) do
+    t2[k] = v
+  end
+
+  return t2
+end
+
 function copy_table(t)
   local t2 = {}
 
@@ -131,8 +141,11 @@ function update_cursor()
   elseif cursor.tool == 'select point' then
     -- find the top point under the cursor
     local point, poly = find_nearest_point(cursor)
-    if point then
-      cursor.hoveredPoint = point
+    if poly then
+      cursor.hoveredPoint = {
+        point = point,
+        poly = poly
+      }
       cursor.hoveredPoly = poly
     end
   end
@@ -192,28 +205,30 @@ function find_nearest_point(cursorPos)
 end
 
 function move_selected_points(xDelta, yDelta)
-  if xDelta ~= 0 or yDelta ~= 0 then
-    save_undo_state()
-  end
+  local pointsToMove = {}
 
-  local points = selectedPoints
-
+  if #selectedPoints > 0 then
+    for _, sp in pairs(selectedPoints) do
+      table.insert(pointsToMove, sp.point)
+    end
   -- if there are no specifically selected points, but there are whole polygons
   -- selected, move all points in the selected polygons
-  if #selectedPoints == 0 then
-    if #selectedPolygons > 0 then
-      points = {}
-      for _, poly in pairs(selectedPolygons) do
-        for _, point in pairs(poly.points) do
-          table.insert(points, point)
-        end
+  elseif #selectedPoints == 0 and #selectedPolygons > 0 then
+    for _, poly in pairs(selectedPolygons) do
+      for _, point in pairs(poly.points) do
+        table.insert(pointsToMove, point)
       end
     end
   end
 
-  for _, point in pairs(points) do
-    point.x = point.x + xDelta
-    point.y = point.y + yDelta
+  if #pointsToMove > 0 then
+    if xDelta ~= 0 or yDelta ~= 0 then
+      save_undo_state()
+      for _, point in pairs(pointsToMove) do
+        point.x = point.x + xDelta
+        point.y = point.y + yDelta
+      end
+    end
   end
 end
 
@@ -223,8 +238,8 @@ function set_selected_polygons(points)
   reset_selection_flash()
 end
 
-function set_selected_points(points)
-  selectedPoints = points
+function set_selected_points(pointRefs)
+  selectedPoints = pointRefs
   selectedPolygons = {}
   reset_selection_flash(false)
 end
@@ -331,10 +346,11 @@ function love.keypressed(key)
   end
 
   if key == 'tab' then
-    if cursor.tool == 'select polygon' then
+    if cursor.tool == 'select polygon' or
+       (cursor.tool == 'move' and #selectedPolygons > 0) then
       if #selectedPolygons == 0 then
         if #selectedPoints == 1 then
-          local index, poly = find_point_index(selectedPoints[1])
+          local poly = selectedPoints[1].poly
           set_selected_polygons({poly})
         else
           set_selected_polygons({polygons[1]})
@@ -360,31 +376,22 @@ function love.keypressed(key)
       end
     end
 
-    if cursor.tool == 'select point' then
-      if #selectedPoints == 0 then
-        if #selectedPolygons == 1 then
-          set_selected_points({selectedPolygons[1].points[1]})
-        end
+    if cursor.tool == 'select point' or
+       (cursor.tool == 'move' and #selectedPoints > 0) then
+      if #selectedPoints == 0 and #selectedPolygons == 1 then
+        local sp = {
+          point = selectedPolygons[1].points[1],
+          poly = selectedPolygons[1]
+        }
+
+        set_selected_points({sp})
       elseif #selectedPoints == 1 then
-        -- cycle through points in the same polygon as the currently selected
-        -- point
-        local index, poly = find_point_index(selectedPoints[1])
-        if index then
-          local nextIndex
-          if shiftIsDown then
-            nextIndex = index - 1
-          else
-            nextIndex = index + 1
-          end
-
-          if nextIndex < 1 then
-            nextIndex = #poly.points
-          elseif nextIndex > #poly.points then
-            nextIndex = 1
-          end
-
-          set_selected_points({poly.points[nextIndex]})
+        local dir = 1
+        if shiftIsDown then
+          dir = -1
         end
+
+        select_next_point(selectedPoints[1], dir)
       end
     end
   end
@@ -396,14 +403,65 @@ function love.keypressed(key)
   end
 
   if key == 'delete' or key == 'backspace' then
-    save_undo_state()
-    polygons = remove_values_from_table(selectedPolygons, polygons)
-    set_selected_polygons({})
+    if #selectedPolygons > 0 then
+      save_undo_state()
+
+      polygons = remove_values_from_table(selectedPolygons, polygons)
+      set_selected_polygons({})
+    end
+
+    if #selectedPoints > 0 then
+      save_undo_state()
+
+      local pointsToDelete = shallow_copy_table(selectedPoints)
+
+      if #selectedPoints == 1 and #selectedPoints[1].poly.points > 3 then
+        select_next_point(selectedPoints[1], 1)
+      else
+        set_selected_points({})
+      end
+
+      for _, sp in pairs(pointsToDelete) do
+        -- remove the point from its polygon
+        local index = find_point_index(sp.point, sp.poly)
+        table.remove(sp.poly.points, index)
+
+        -- if this point's polygon has less than 3 points now, delete it
+        if #sp.poly.points < 3 then
+          print('deleting polygon')
+          polygons = remove_values_from_table({sp.poly}, polygons)
+        end
+      end
+    end
   end
 
   if key == 'u' then
     undo()
   end
+end
+
+function select_next_point(sp, direction)
+  -- cycle through points in the same polygon as the currently selected
+  -- point
+  local index = find_point_index(sp.point, sp.poly)
+  local poly = sp.poly
+
+  print('sp is below')
+  print(sp)
+
+  local nextIndex = index + direction
+  if nextIndex < 1 then
+    nextIndex = #poly.points
+  elseif nextIndex > #poly.points then
+    nextIndex = 1
+  end
+
+  local newSelectedPoint = {
+    point = poly.points[nextIndex],
+    poly = poly
+  }
+
+  set_selected_points({newSelectedPoint})
 end
 
 function push_polygon_back(poly)
@@ -424,16 +482,11 @@ function find_polygon_index(poly)
   end
 end
 
-function find_point_index(point)
-  -- check polygons in front-to-back order
-  for i = #polygons, 1, -1 do
-    local poly = polygons[i]
-
-    for j = 1, #poly.points do
-      local p = poly.points[j]
-      if point.x == p.x and point.y == p.y then
-        return j, poly
-      end
+-- find a point's index within its parent polygon
+function find_point_index(point, polygon)
+  for i = 1, #polygon.points do
+    if polygon.points[i] == point then
+      return i
     end
   end
 end
@@ -467,12 +520,16 @@ function push_primary_button()
   elseif cursor.tool == 'select point' then
     if cursor.hoveredPoint then
       if shiftIsDown then
-        local existingIndex = find_point_index_in_table(
-          cursor.hoveredPoint, selectedPoints)
+        -- look for this point in the selectedPoints table
+        local existingIndex
+        for i, sp in pairs(selectedPoints) do
+          if cursor.hoveredPoint.point == sp.point then
+            existingIndex = i
+          end
+        end
 
         -- if this point is already in the selectedPoints table
         if existingIndex then
-          print('removing selected point')
           table.remove(selectedPoints, existingIndex)
         else
           -- otherwise add the point to the table of selected points
@@ -483,14 +540,6 @@ function push_primary_button()
       end
     else
       set_selected_points({})
-    end
-  end
-end
-
-function find_point_index_in_table(point, t)
-  for i, p in pairs(t) do
-    if p.x == point.x and p.y == point.y then
-      return i
     end
   end
 end
@@ -573,6 +622,8 @@ function set_color(color)
   cursor.color = color
 
   if cursor.tool == 'change color' then
+    save_undo_state()
+
     -- make all selected polygons this color
     for _, poly in pairs(selectedPolygons) do
       poly.color = color
@@ -802,8 +853,9 @@ function draw_tool()
   if cursor.hoveredPoint then
     love.graphics.setPointSize(5)
     love.graphics.setColor(255, 255, 255, 100)
-    love.graphics.circle(
-      'line', cursor.hoveredPoint.x, cursor.hoveredPoint.y, 2)
+
+    local point = cursor.hoveredPoint.point
+    love.graphics.circle('line', point.x, point.y, 2)
   end
 
   ---- draw a highlight overlay on the selected polygons
@@ -823,8 +875,8 @@ function draw_tool()
   if not selectionFlash.isOn then
     love.graphics.setPointSize(5)
     love.graphics.setColor(255, 255, 255, 200)
-    for _, point in pairs(selectedPoints) do
-      love.graphics.circle('line', point.x, point.y, 1)
+    for _, sp in pairs(selectedPoints) do
+      love.graphics.circle('line', sp.point.x, sp.point.y, 1)
     end
   end
 
@@ -895,7 +947,8 @@ function draw_status()
 
   if #selectedPoints > 0 then
     love.graphics.print('selected point(s): ', x, y)
-    for _, point in pairs(selectedPoints) do
+    for i = 1, #selectedPoints do
+      local point = selectedPoints[i].point
       y = y + lineh
       love.graphics.print(point_to_string(point), x, y)
     end
@@ -1026,6 +1079,8 @@ function undo()
     -- apply the saved state
     polygons = state.polygons
     drawingPoints = state.drawingPoints
+    cursor.color = state.cursorColor
+    cursor.tool = state.cursorTool
 
     -- clear selections because they point to non-existant objects now
     set_selected_polygons({})
@@ -1039,6 +1094,8 @@ function save_undo_state()
   local state = {}
   state.polygons = copy_table(polygons)
   state.drawingPoints = copy_table(drawingPoints)
+  state.cursorColor = cursor.color
+  state.cursorTool = cursor.tool
 
   table.insert(undoHistory, state)
 end
