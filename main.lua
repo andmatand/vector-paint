@@ -62,6 +62,8 @@ function love.load()
     isOn = true
   }
 
+  mouseOnlyMode = true
+
   polygons = {}
 
   -- debug: add a test polygon
@@ -236,25 +238,30 @@ function update_cursor()
   local delta = .25
   local friction = .80
 
-  if not cursor.fineMode and cursor.tool ~= 'move' then
-    if love.keyboard.isDown('left') then
-      cursor.vx = cursor.vx - delta
-    elseif love.keyboard.isDown('right') then
-      cursor.vx = cursor.vx + delta
-    elseif love.keyboard.isDown('up') then
-      cursor.vy = cursor.vy - delta
-    elseif love.keyboard.isDown('down') then
-      cursor.vy = cursor.vy + delta
+  if not mouseOnlyMode then
+    if not cursor.fineMode and cursor.tool ~= 'move' then
+      if love.keyboard.isDown('left') then
+        cursor.vx = cursor.vx - delta
+      end
+      if love.keyboard.isDown('right') then
+        cursor.vx = cursor.vx + delta
+      end
+      if love.keyboard.isDown('up') then
+        cursor.vy = cursor.vy - delta
+      end
+      if love.keyboard.isDown('down') then
+        cursor.vy = cursor.vy + delta
+      end
     end
+
+    -- apply cursor velocity
+    cursor.x = cursor.x + cursor.vx
+    cursor.y = cursor.y + cursor.vy
+
+    -- apply friction
+    cursor.vx = cursor.vx * friction
+    cursor.vy = cursor.vy * friction
   end
-
-  -- apply cursor velocity
-  cursor.x = cursor.x + cursor.vx
-  cursor.y = cursor.y + cursor.vy
-
-  -- apply friction
-  cursor.vx = cursor.vx * friction
-  cursor.vy = cursor.vy * friction
 
   -- enforce cursor boundaries
   if cursor.x < 0 then
@@ -461,7 +468,21 @@ function love.keypressed(key)
     end
   end
 
-  -- toggle cursor fine-movement mode
+  if key == 'k' then
+    -- toggle between mouse-only mode (in which the arrow keys always move
+    -- points, even if the move tool is not selected) and keyboard-friendly
+    -- mode
+    
+    mouseOnlyMode = not mouseOnlyMode
+
+    if mouseOnlyMode then
+      -- halt the cursor's current momentum
+      cursor.vx = 0
+      cursor.vy = 0
+    end
+  end
+
+  -- toggle fine-movement mode for the keyboard-cursor
   if key == 'f' then
     cursor.fineMode = not cursor.fineMode
 
@@ -472,7 +493,7 @@ function love.keypressed(key)
     end
   end
 
-  if cursor.tool == 'move' then
+  if cursor.tool == 'move' or mouseOnlyMode then
     if key == 'left' then
       move_selected_points(-1, 0)
     elseif key == 'right' then
@@ -483,7 +504,7 @@ function love.keypressed(key)
       move_selected_points(0, 1)
     end
   else
-    if cursor.fineMode then
+    if cursor.fineMode and not mouseOnlyMode then
       if key == 'left' then
         cursor.x = cursor.x - 1
       elseif key == 'right' then
@@ -548,13 +569,15 @@ function love.keypressed(key)
 
   if key == '[' then
     -- push the selected polygons back by one in the stack
-    for i = 1, #selectedPolygons do
-      push_polygon_back(selectedPolygons[i])
+    local polys = get_target_polygons()
+    for i = 1, #polys do
+      push_polygon_back(polys[i])
     end
   elseif key == ']' then
     -- pull the selected polygons forward by one in the stack
-    for i = 1, #selectedPolygons do
-      pull_polygon_forward(selectedPolygons[i])
+    local polys = get_target_polygons()
+    for i = 1, #polys do
+      pull_polygon_forward(polys[i])
     end
   end
 
@@ -893,27 +916,36 @@ function get_color_under_mouse(x, y)
   end
 end
 
+-- get a table of all polygons selected or partially selected in any way (i.e.
+-- regardness of whether the the whole polygon is selected, via "select
+-- polygons" tool, or only a point of the polygon is selected, via the "select
+-- points" tool)
+function get_target_polygons()
+  local targetPolys = {}
+
+  if #selectedPolygons > 0 then
+    targetPolys = selectedPolygons
+  elseif #selectedPoints > 0 then
+    -- add each polygon that has any point selected
+    for _, sp in pairs(selectedPoints) do
+      if not table_has_value(targetPolys, sp.poly) then
+        table.insert(targetPolys, sp.poly)
+      end
+    end
+  end
+
+  return targetPolys
+end
+
 function set_color(color)
   cursor.color = color
 
   if cursor.tool == 'change color' then
     save_undo_state()
 
-    local targetPolys = {}
+    local targetPolys = get_target_polygons()
 
-    -- determine which polygons to re-color
-    if #selectedPolygons > 0 then
-      targetPolys = selectedPolygons
-    elseif #selectedPoints > 0 then
-      -- add each polygon that has any point selected
-      for _, sp in pairs(selectedPoints) do
-        if not table_has_value(targetPolys, sp.poly) then
-          table.insert(targetPolys, sp.poly)
-        end
-      end
-    end
-
-    -- change the color of all target polygons determined above
+    -- change the color of all target polygons
     for _, poly in pairs(targetPolys) do
       poly.color = color
     end
