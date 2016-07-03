@@ -899,11 +899,35 @@ function set_color(color)
   if cursor.tool == 'change color' then
     save_undo_state()
 
-    -- make all selected polygons this color
-    for _, poly in pairs(selectedPolygons) do
+    local targetPolys = {}
+
+    -- determine which polygons to re-color
+    if #selectedPolygons > 0 then
+      targetPolys = selectedPolygons
+    elseif #selectedPoints > 0 then
+      -- add each polygon that has any point selected
+      for _, sp in pairs(selectedPoints) do
+        if not table_has_value(targetPolys, sp.poly) then
+          table.insert(targetPolys, sp.poly)
+        end
+      end
+    end
+
+    -- change the color of all target polygons determined above
+    for _, poly in pairs(targetPolys) do
       poly.color = color
     end
   end
+end
+
+function table_has_value(t, value)
+  for k, v in pairs(t) do
+    if v == value then
+      return true
+    end
+  end
+
+  return false
 end
 
 function love.mousepressed(x, y, button)
