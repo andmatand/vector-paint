@@ -1,6 +1,14 @@
+local utf8 = require("utf8")
+local bit = require('bit')
+
 function love.load()
   CANVAS_W = 61
   CANVAS_H = 101
+  love.filesystem.setIdentity('vector-paint')
+  love.graphics.setFont(love.graphics.newFont(14))
+
+  MAX_POLYGONS = 256
+  MAX_POLYGON_POINTS = 256
 
   canvasMargin = 50
   find_best_canvas_scale()
@@ -55,18 +63,149 @@ function love.load()
   }
 
   polygons = {}
-  polygons[1] = {
-    color = 8,
-    points = {
-      {x = 10, y = 8},
-      {x = 20, y = 10},
-      {x = 15, y = 29},
-      {x = 30, y = 44},
-      {x = 14, y = 53}
-    }
-  }
+
+  -- debug: add a test polygon
+  --polygons[1] = {
+  --  color = 8,
+  --  points = {
+  --    {x = 10, y = 8},
+  --    {x = 20, y = 10},
+  --    {x = 15, y = 29},
+  --    {x = 30, y = 44},
+  --    {x = 14, y = 53}
+  --  }
+  --}
 
   undoHistory = {}
+
+  currentFilename = ''
+end
+
+function get_painting_data()
+  -- PAINTING FORMAT
+  --    bits  | description
+  --   ====================+
+  --        7 | polygon count - 1 (i.e. 0 is considered to mean 1 polygon)
+  --   to end | 1 or more POLYGONs
+  --   ^^ OH WAIT WE DON'T REALLY NEED THIS
+  --
+  -- POLYGON FORMAT
+  --    bits  | description
+  --   =====================
+  --        6 | point count - 3 (i.e. 0 is considered to mean 3 points)
+  --        4 | color
+  --   to end | 3 or more POINTs
+  --
+  -- POINT FORMAT
+  --    bits  | description
+  --   =====================
+  --      6   | x
+  --      7   | y
+
+  local bytes = {}
+
+  -- add the polygon count
+  --table.insert(bytes, #polygons)
+
+  -- add each polygon
+  for i = 1, #polygons do
+    local poly = polygons[i]
+
+    table.insert(bytes, #poly.points) -- point count
+    table.insert(bytes, poly.color)  -- color
+
+    -- add each point
+    for j = 1, #poly.points do
+      local point = poly.points[j]
+      table.insert(bytes, point.x)
+      table.insert(bytes, point.y)
+    end
+  end
+
+  local hex = ''
+  for i = 1, #bytes do
+    hex = hex .. bit.tohex(bytes[i], 2)
+  end
+
+  return hex
+end
+
+function save_painting(filename)
+  local data = get_painting_data()
+
+  local success = love.filesystem.write(filename, data)
+
+  if success then
+    print('saved to ' .. filename)
+  else
+    love.window.showMessageBox('nooooo', 'ERROR SAVING :(', 'error')
+  end
+end
+
+function load_painting(filename)
+  local data = love.filesystem.read(filename)
+
+  -- parse and apply the painting data
+  parse_painting_data(data)
+end
+
+function create_painting_reader(data)
+  local obj = {
+    i = 1,
+    data = data,
+
+    get_next_byte = function(self)
+      local byte = ('0x' .. string.sub(self.data, self.i, self.i + 1)) + 0
+      self.i = self.i + 2
+      return byte
+    end,
+
+    is_at_end = function(self)
+      return (self.i > #data)
+    end
+  }
+
+  return obj
+end
+
+function parse_painting_data(data)
+  if #data == 0 then
+    love.window.showMessageBox('hey!', 'that file is empty; nothing to load!')
+    return
+  end
+
+  save_undo_state()
+
+  -- clear the existing painting
+  polygons = {}
+  selectedPolygons = {}
+  selectedPoints = {}
+  --undoHistory = {}
+
+  local reader = create_painting_reader(data)
+
+  -- read each polygon
+  repeat
+    polygon = {
+      points = {}
+    }
+
+    -- read the point count
+    local pointCount = reader:get_next_byte()
+
+    -- read the color
+    polygon.color = reader:get_next_byte()
+
+    -- read each point
+    for i = 1, pointCount do
+      local x = reader:get_next_byte()
+      local y = reader:get_next_byte()
+
+      table.insert(polygon.points, {x = x, y = y})
+    end
+
+    table.insert(polygons, polygon)
+  until reader:is_at_end()
 end
 
 function shallow_copy_table(t)
@@ -244,9 +383,74 @@ function set_selected_points(pointRefs)
   reset_selection_flash(false)
 end
 
+function choose_existing_file()
+  --local pressed = love.window.showMessageBox
+
+  --return filenames[pressed]
+end
+
+function love.textinput(t)
+  if mode == 'save' then
+    currentFilename = currentFilename .. t
+  end
+end
+
+function rtrim(s)
+  local n = #s
+  while n > 0 and s:find("^%s", n) do n = n - 1 end
+  return s:sub(1, n)
+end
+
+function love.filedropped(file)
+  file:open('r')
+  local data = file:read()
+  file:close()
+
+  if data then
+    -- parse and apply the painting data
+    parse_painting_data(data)
+  end
+end
+
 function love.keypressed(key)
+  if mode == 'save' then
+    if key == 'return' then
+      currentFilename = rtrim(currentFilename)
+
+      save_painting(currentFilename)
+      mode = nil
+    elseif key == 'escape' then
+      mode = nil
+    elseif key == 'backspace' and #currentFilename > 0 then
+      local byteoffset = utf8.offset(currentFilename, -1)
+      if byteoffset then
+        currentFilename = string.sub(currentFilename, 1, byteoffset - 1)
+      end
+    end
+
+    return
+  end
+
   local shiftIsDown = (love.keyboard.isDown('lshift') or
     love.keyboard.isDown('rshift'))
+
+  if love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') then
+    if key == 'n' then
+      -- todo: confirm here, but window.showMessageBox with buttons is bugged
+
+      save_undo_state()
+
+      currentFilename = nil
+      polygons = {}
+      selectedPolygons = {}
+      selectedPoints = {}
+    elseif key == 's' then
+      mode = 'save'
+
+      -- don't let this key trigger anything else below
+      return
+    end
+  end
 
   -- toggle cursor fine-movement mode
   if key == 'f' then
@@ -428,7 +632,6 @@ function love.keypressed(key)
 
         -- if this point's polygon has less than 3 points now, delete it
         if #sp.poly.points < 3 then
-          print('deleting polygon')
           polygons = remove_values_from_table({sp.poly}, polygons)
         end
       end
@@ -436,55 +639,66 @@ function love.keypressed(key)
   end
 
   if key == 'i' then
-    -- If there are exactly two points selected, from the same polygon
-    if #selectedPoints == 2 and
-       selectedPoints[1].poly == selectedPoints[2].poly then
-
-      -- Get the indices of the two selected points
-      local i = find_point_index(selectedPoints[1].point,
-        selectedPoints[1].poly)
-      local j = find_point_index(selectedPoints[2].point,
-        selectedPoints[2].poly)
-
-      local polygon = selectedPoints[1].poly
-
-      -- Put the two indices in ascending order
-      if j < i then
-        j, i = i, j
-      end
-
-      -- if the indices are consecutive
-      if j == i + 1 or (i == 1 and j == #polygon.points) then
-        -- find the midpoint between the two points
-        local midpoint = midpoint(polygon.points[i], polygon.points[j])
-
-        midpoint.x = math.floor(midpoint.x)
-        midpoint.y = math.floor(midpoint.y)
-
-        save_undo_state()
-
-        if i == 1 then
-          newIndex = 1
-        else
-          newIndex = j
-        end
-
-        -- insert the midpoint as a new point in the polygon
-        table.insert(polygon.points, newIndex, midpoint)
-
-        -- select the new point
-        selectedPoints = {
-          {
-            point = polygon.points[newIndex],
-            poly = polygon
-          }
-        }
-      end
-    end
+    insert_point()
   end
 
   if key == 'u' then
     undo()
+  end
+end
+
+function insert_point()
+  -- If there are exactly two points selected, from the same polygon
+  if #selectedPoints == 2 and
+     selectedPoints[1].poly == selectedPoints[2].poly then
+
+    -- Get the indices of the two selected points
+    local i = find_point_index(selectedPoints[1].point,
+      selectedPoints[1].poly)
+    local j = find_point_index(selectedPoints[2].point,
+      selectedPoints[2].poly)
+
+    local polygon = selectedPoints[1].poly
+
+    if #polygon.points >= MAX_POLYGON_POINTS then
+      love.window.showMessageBox('so many!',
+        'this polygon has ' .. MAX_POLYGON_POINTS ..
+        ' points; no more can be added')
+      return
+    end
+
+    -- Put the two indices in ascending order
+    if j < i then
+      j, i = i, j
+    end
+
+    -- if the indices are consecutive
+    if j == i + 1 or (i == 1 and j == #polygon.points) then
+      -- find the midpoint between the two points
+      local midpoint = midpoint(polygon.points[i], polygon.points[j])
+
+      midpoint.x = math.floor(midpoint.x)
+      midpoint.y = math.floor(midpoint.y)
+
+      save_undo_state()
+
+      if i == 1 then
+        newIndex = 1
+      else
+        newIndex = j
+      end
+
+      -- insert the midpoint as a new point in the polygon
+      table.insert(polygon.points, newIndex, midpoint)
+
+      -- select the new point
+      selectedPoints = {
+        {
+          point = polygon.points[newIndex],
+          poly = polygon
+        }
+      }
+    end
   end
 end
 
@@ -500,9 +714,6 @@ function select_next_point(sp, direction)
   -- point
   local index = find_point_index(sp.point, sp.poly)
   local poly = sp.poly
-
-  print('sp is below')
-  print(sp)
 
   local nextIndex = index + direction
   if nextIndex < 1 then
@@ -884,7 +1095,8 @@ function render_polygons()
   love.graphics.setCanvas(canvas)
   love.graphics.clear(0, 0, 0)
 
-  for _, poly in pairs(polygons) do
+  for i = 1, #polygons do
+    local poly = polygons[i]
     fillpoly(poly, palette[poly.color])
   end
 
@@ -957,7 +1169,7 @@ function draw_status()
   love.graphics.setColor(255, 255, 255)
   local x = (CANVAS_W * canvasScale) + (canvasMargin * 2)
   local y = canvasMargin
-  local lineh = 14
+  local lineh = love.graphics.getFont():getHeight()
 
   love.graphics.print('total polygons: ' .. #polygons, x, y)
 
@@ -1037,6 +1249,13 @@ function draw_cursor()
 end
 
 function draw_point()
+  if #polygons == MAX_POLYGONS then
+    love.window.showMessageBox('so many!',
+      'this painting has the maximum ' .. MAX_POLYGONS .. ' polygons; ' ..
+      'no more can be added')
+    return
+  end
+
   save_undo_state()
 
   table.insert(drawingPoints,
@@ -1146,6 +1365,10 @@ function undo()
 end
 
 function save_undo_state()
+  if #undoHistory == MAX_UNDO then
+    table.remove(undoHistory, 1)
+  end
+
   local state = {}
   state.polygons = copy_table(polygons)
   state.drawingPoints = copy_table(drawingPoints)
@@ -1164,6 +1387,12 @@ function love.draw()
   -- clear the screen
   love.graphics.setCanvas()
   love.graphics.clear(10, 10, 10)
+
+  if mode == 'save' then
+    love.graphics.print('Enter filename to save to:', 20, 20)
+    love.graphics.print(currentFilename, 20, 40)
+    return
+  end
 
   -- render all the polygons to the canvas
   render_polygons()
