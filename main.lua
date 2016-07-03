@@ -1120,16 +1120,6 @@ function point_in_polygon(point, poly)
   return c
 end
 
-function sort(t)
-  for i = 2, #t do
-    local j = i
-    while j > 1 and t[j - 1] > t[j] do
-      -- swap j and j - 1
-      t[j - 1], t[j] = t[j], t[j - 1]
-      j = j - 1
-    end
-  end
-end
 function fillpoly(poly, rgba, outline)
   love.graphics.setColor(rgba)
   love.graphics.setPointSize(1)
@@ -1141,7 +1131,7 @@ function fillpoly(poly, rgba, outline)
   for y = y2, y1, -1 do
     -- find intersecting nodes
     local xlist = find_intersections(poly.points, y)
-    sort(xlist)
+    table.sort(xlist)
 
     for i = 1, #xlist - 1, 2 do
       local x1 = math.floor(xlist[i])
@@ -1270,10 +1260,21 @@ function draw_status()
   if selectedPolys then
     y = 300
     if #selectedPolys == 1 then
-      love.graphics.print("selected polygon's points: ", x, y)
+      love.graphics.print('selected polygon:', x, y)
+      y = y + lineh
+
+      local index = find_polygon_index(selectedPolys[1])
+      if index then
+        love.graphics.print('  index: ' .. find_polygon_index(selectedPolys[1]),
+          x, y)
+        y = y + lineh
+      end
+
+      love.graphics.print('  points:', x, y)
       for i, point in pairs(selectedPolys[1].points) do
         y = y + lineh
-        love.graphics.print(i .. ': ' .. point_to_string(point), x, y)
+        love.graphics.print('    ' .. i .. ': ' .. point_to_string(point),
+          x, y)
       end
 
     elseif #selectedPolys > 1 then
@@ -1284,12 +1285,54 @@ function draw_status()
 
   if #selectedPoints > 0 then
     love.graphics.print('selected point(s): ', x, y)
-    for i = 1, #selectedPoints do
-      local point = selectedPoints[i].point
-      y = y + lineh
-      love.graphics.print(point_to_string(point), x, y)
+    y = y + lineh
+
+    -- Group the points by parent polygon
+    local groups = {}
+    for _, sp in pairs(selectedPoints) do
+      local index = find_polygon_index(sp.poly)
+
+      if not groups[index] then
+        groups[index] = {}
+      end
+
+      table.insert(groups[index], sp)
     end
+
+    local sortedKeys = get_sorted_keys(groups)
+
+    for i = 1, #sortedKeys do
+      local key = sortedKeys[i]
+
+      love.graphics.print('  polygon ' .. key .. ':', x, y)
+      y = y + lineh
+
+      for j = 1, #groups[key] do
+        local sp = groups[key][j]
+        local index = find_point_index(sp.point, sp.poly)
+        love.graphics.print('    ' .. index .. ' ' ..
+          point_to_string(sp.point), x, y)
+        y = y + lineh
+      end
+    end
+
+    --for i = 1, #selectedPoints do
+    --  local point = selectedPoints[i].point
+    --  y = y + lineh
+    --  love.graphics.print(point_to_string(point) .. ' polygon ' .. , x, y)
+    --end
   end
+end
+
+function get_sorted_keys(t)
+  local keys = {}
+  for k, v in pairs(t) do
+    table.insert(keys, k)
+  end
+
+  table.sort(keys)
+
+  return keys
 end
 
 function draw_cursor()
