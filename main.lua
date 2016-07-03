@@ -391,6 +391,10 @@ end
 
 function love.textinput(t)
   if mode == 'save' then
+    if not currentFilename then
+      currentFilename = ''
+    end
+
     currentFilename = currentFilename .. t
   end
 end
@@ -407,6 +411,11 @@ function love.filedropped(file)
   file:close()
 
   if data then
+    currentFilename = file:getFilename()
+    
+    -- remove all but the filename
+    currentFilename = currentFilename:match( "([^/]+)$" )
+
     -- parse and apply the painting data
     parse_painting_data(data)
   end
@@ -440,7 +449,7 @@ function love.keypressed(key)
 
       save_undo_state()
 
-      currentFilename = nil
+      currentFilename = ''
       polygons = {}
       selectedPolygons = {}
       selectedPoints = {}
@@ -1390,7 +1399,9 @@ function love.draw()
 
   if mode == 'save' then
     love.graphics.print('Enter filename to save to:', 20, 20)
-    love.graphics.print(currentFilename, 20, 40)
+    if currentFilename then
+      love.graphics.print(currentFilename, 20, 40)
+    end
     return
   end
 
