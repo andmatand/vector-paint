@@ -1250,9 +1250,14 @@ function draw_status()
   y = y + lineh
   love.graphics.print('current tool: ' .. cursor.tool, x, y)
 
-  if cursor.fineMode then
+  if not mouseOnlyMode then
     y = y + lineh
-    love.graphics.print('fine cursor movement enabled', x, y)
+
+    if cursor.fineMode then
+      love.graphics.print('fine keyboard-cursor movement enabled', x, y)
+    else
+      love.graphics.print('keyboard-friendly mode enabled', x, y)
+    end
   end
 
   local selectedPolys
