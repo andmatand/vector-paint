@@ -583,7 +583,7 @@ function love.keypressed(key)
 
   if key == 'tab' then
     if cursor.tool == 'select polygon' or
-       (cursor.tool == 'move' and #selectedPolygons > 0) then
+       (cursor.tool ~= 'select point' and #selectedPolygons > 0) then
       if #selectedPolygons == 0 then
         if #selectedPoints == 1 then
           local poly = selectedPoints[1].poly
@@ -613,7 +613,7 @@ function love.keypressed(key)
     end
 
     if cursor.tool == 'select point' or
-       (cursor.tool == 'move' and #selectedPoints > 0) then
+       (cursor.tool ~= 'select polygon' and #selectedPoints > 0) then
       if #selectedPoints == 0 and #selectedPolygons == 1 then
         local sp = {
           point = selectedPolygons[1].points[1],
