@@ -661,11 +661,6 @@ function love.keypressed(key)
         -- remove the point from its polygon
         local index = find_point_index(sp.point, sp.poly)
         table.remove(sp.poly.points, index)
-
-        -- if this point's polygon has less than 3 points now, delete it
-        if #sp.poly.points < 3 then
-          polygons = remove_values_from_table({sp.poly}, polygons)
-        end
       end
     end
   end
@@ -984,14 +979,23 @@ function love.mousepressed(x, y, button)
 end
 
 function finalize_drawing_points()
-  if #drawingPoints < 3 then
+  if #drawingPoints < 1 then
     return
   end
+
+  --local points = {}
+
+  --if #drawingPoints <= 3 then
+  --  points = copy_table(drawingPoints)
+  --  table.remove(points, #points)
+  --else
+  --  points = copy_table(drawingPoints)
+  --end
 
   -- finalize the WIP polygon
   table.insert(polygons,
     {
-      points = copy_table(drawingPoints),
+      points = drawingPoints,
       color = cursor.color
     })
 
@@ -1096,6 +1100,10 @@ function find_intersections(points, y)
 end
 
 function point_in_polygon(point, poly)
+  if #poly.points < 3 then
+    return false
+  end
+
   local points = poly.points
   local x = point.x
   local y = point.y
@@ -1125,6 +1133,18 @@ function fillpoly(poly, rgba, outline)
   love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
 
+  if #poly.points == 1 then
+    -- draw a point instead of a polygon
+    love.graphics.points(poly.points[1].x, poly.points[1].y)
+    return
+  elseif #poly.points == 2 then
+    -- draw a line instead of a polygon
+    love.graphics.line(
+      poly.points[1].x, poly.points[1].y,
+      poly.points[2].x, poly.points[2].y)
+    return
+  end
+
   -- find the bounds of the polygon
   local x1, x2, y1, y2 = find_bounds(poly.points)
 
@@ -1152,6 +1172,7 @@ function render_polygons()
 
   for i = 1, #polygons do
     local poly = polygons[i]
+
     fillpoly(poly, palette[poly.color])
   end
 
@@ -1168,7 +1189,9 @@ function draw_tool()
 
   -- draw a lowlight overlay on the polygon we are hovering over
   if cursor.hoveredPolygon then
+    love.graphics.setBlendMode('subtract')
     fillpoly(cursor.hoveredPolygon, {255, 255, 255, 100})
+    love.graphics.setBlendMode('alpha')
   end
 
   -- draw a lowlight overlay on the point we are hovering over
@@ -1180,12 +1203,6 @@ function draw_tool()
     love.graphics.circle('line', point.x, point.y, 2)
   end
 
-  ---- draw a highlight overlay on the selected polygons
-  --for _, poly in pairs(selectedPolygons) do
-  --  if selectionFlash.isOn then
-  --    fillpoly(poly, {255, 255, 255, 200})
-  --  end
-  --end
   -- draw an outline around the selected polygons
   if selectionFlash.isOn then
     for _, poly in pairs(selectedPolygons) do
