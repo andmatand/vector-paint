@@ -1,5 +1,6 @@
-local utf8 = require("utf8")
+local utf8 = require('utf8')
 local bit = require('bit')
+local picolove = require('lib.picolove')
 
 function love.load()
   CANVAS_W = 61
@@ -72,16 +73,15 @@ function love.load()
   polygons = {}
 
   -- debug: add a test polygon
-  --polygons[1] = {
-  --  color = 8,
-  --  points = {
-  --    {x = 10, y = 8},
-  --    {x = 20, y = 10},
-  --    {x = 15, y = 29},
-  --    {x = 30, y = 44},
-  --    {x = 14, y = 53}
-  --  }
-  --}
+  polygons[1] = {
+    color = 5,
+    points = {
+      {x = 0, y = 0},
+      {x = CANVAS_W - 1, y = 0},
+      {x = CANVAS_W - 1, y = CANVAS_H - 1},
+      {x = 0, y = CANVAS_H - 1}
+    }
+  }
 
   undoHistory = {}
 
@@ -1147,14 +1147,15 @@ function fillpoly(poly, rgba, outline)
   love.graphics.setColor(rgba)
   love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
+  love.graphics.setLineStyle('rough')
 
   if #poly.points == 1 then
     -- draw a point instead of a polygon
-    love.graphics.points(poly.points[1].x, poly.points[1].y)
+    love.graphics.points(poly.points[1].x + 0.5, poly.points[1].y + 0.5)
     return
   elseif #poly.points == 2 then
-    -- draw a line instead of a polygon
-    love.graphics.line(
+    -- draw a line
+    picolove.line(
       poly.points[1].x, poly.points[1].y,
       poly.points[2].x, poly.points[2].y)
     return
@@ -1172,11 +1173,10 @@ function fillpoly(poly, rgba, outline)
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
 
-      if outline then
-        love.graphics.points(x1, y, x2, y)
-      else
-        love.graphics.line(x1, y, x2, y)
-      end
+      -- DEBUG: make sure the line's pixels are in the correct spot
+      --love.graphics.points(x1 + 0.5, y + 0.5)
+
+      picolove.line(x1, y, x2, y)
     end
   end
 end
@@ -1212,7 +1212,7 @@ function draw_tool()
     255,
     85,
     255,
-    255
+    225
   }
 
   -- draw a overlay on the polygon we are hovering over
@@ -1227,13 +1227,15 @@ function draw_tool()
     love.graphics.setColor(hoverColor)
 
     local point = cursor.hoveredPoint.point
-    love.graphics.rectangle('line', point.x - 1, point.y - 1, 2, 2)
+    local x = point.x + 0.5
+    local y = point.y + 0.5
+    love.graphics.rectangle('line', x - 1, y - 1, 2, 2)
   end
 
-  -- draw an flashing outline around the selected polygons
+  -- draw an flashing overlay over the selected polygons
   if selectionFlash.isOn then
     for _, poly in pairs(selectedPolygons) do
-      fillpoly(poly, selectionColor, true)
+      fillpoly(poly, selectionColor)
     end
   end
 
@@ -1242,7 +1244,7 @@ function draw_tool()
     love.graphics.setPointSize(1)
     love.graphics.setColor(selectionColor)
     for _, sp in pairs(selectedPoints) do
-      love.graphics.points(sp.point.x, sp.point.y)
+      love.graphics.points(sp.point.x + 0.5, sp.point.y + 0.5)
     end
   end
 
@@ -1494,11 +1496,11 @@ function draw_wip_poly()
     local b = points[i + 1]
 
     love.graphics.setColor(palette[cursor.color])
-    love.graphics.line(a.x, a.y, b.x, b.y)
+    picolove.line(a.x, a.y, b.x, b.y)
 
     -- draw a handle on this point
     love.graphics.setColor(255, 255, 255)
-    love.graphics.points(a.x, a.y)
+    love.graphics.points(a.x + 0.5, a.y + 0.5)
   end
 end
 
