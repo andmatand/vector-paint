@@ -661,7 +661,7 @@ function love.keypressed(key)
 
       local pointsToDelete = shallow_copy_table(selectedPoints)
 
-      if #selectedPoints == 1 and #selectedPoints[1].poly.points > 3 then
+      if #selectedPoints == 1 and #selectedPoints[1].poly.points > 1 then
         select_next_point(selectedPoints[1], 1)
       else
         set_selected_points({})
@@ -671,6 +671,11 @@ function love.keypressed(key)
         -- remove the point from its polygon
         local index = find_point_index(sp.point, sp.poly)
         table.remove(sp.poly.points, index)
+
+        -- if this point's polygon has no points now, delete it
+        if #sp.poly.points == 0 then
+          polygons = remove_values_from_table({sp.poly}, polygons)
+        end
       end
     end
   end
