@@ -1,6 +1,7 @@
 local utf8 = require('utf8')
 local bit = require('bit')
 local picolove = require('lib.picolove')
+require('class.colorflash')
 
 function love.load()
   CANVAS_W = 61
@@ -50,23 +51,30 @@ function love.load()
     vx = 0,
     vy = 0,
     tool = 'draw',
-    color = 9
+    color = 9,
   }
+
+  cursor.flash = ColorFlash.new(.25, {
+    palette[0],
+    palette[5],
+    palette[6],
+    palette[7]
+  })
 
   selectedPolygons = {}
   selectedPoints = {}
 
   drawingPoints = {}
 
-  hoverFlash = {
-    time = 0,
-    isOn = true
-  }
+  hoverFlash = ColorFlash.new(.25, {
+    {255, 85, 255},
+    {0, 0, 0}
+  })
 
-  selectionFlash = {
-    time = 0,
-    isOn = true
-  }
+  selectionFlash = ColorFlash.new(.5, {
+    {255, 255, 255, 200},
+    {0, 0, 0, 200}
+  })
 
   mouseOnlyMode = true
 
@@ -240,6 +248,10 @@ function copy_table(t)
 end
 
 function update_cursor()
+  cursor.flash:update()
+  selectionFlash:update()
+  hoverFlash:update()
+
   local delta = .25
   local friction = .80
 
@@ -299,25 +311,6 @@ function update_cursor()
       }
       cursor.hoveredPoly = poly
     end
-  end
-
-  if love.timer.getTime() > selectionFlash.time + .5 then
-    selectionFlash.time = love.timer.getTime()
-    selectionFlash.isOn = not selectionFlash.isOn
-  end
-
-  if love.timer.getTime() > hoverFlash.time + .25 then
-    hoverFlash.time = love.timer.getTime()
-    hoverFlash.isOn = not hoverFlash.isOn
-  end
-end
-
-function reset_selection_flash(initialValue)
-  selectionFlash.time = love.timer.getTime()
-  if initialValue ~= nil then
-    selectionFlash.isOn = initialValue
-  else
-    selectionFlash.isOn = true
   end
 end
 
@@ -391,13 +384,13 @@ end
 function set_selected_polygons(points)
   selectedPolygons = points
   selectedPoints = {}
-  reset_selection_flash()
+  selectionFlash:reset()
 end
 
 function set_selected_points(pointRefs)
   selectedPoints = pointRefs
   selectedPolygons = {}
-  reset_selection_flash(false)
+  selectionFlash:reset()
 end
 
 function choose_existing_file()
@@ -1202,29 +1195,16 @@ function draw_tool()
     draw_wip_poly()
   end
 
-  local hoverColor = {255, 85, 255, 200}
-
-  if hoverFlash.isOn then
-    hoverColor = {0, 0, 0, 225}
-  end
-
-  local selectionColor = {
-    255,
-    85,
-    255,
-    225
-  }
-
   -- draw a overlay on the polygon we are hovering over
   if cursor.hoveredPolygon then
-    fillpoly(cursor.hoveredPolygon, hoverColor)
+    fillpoly(cursor.hoveredPolygon, hoverFlash:get_color())
   end
 
   -- draw a rectangle around the point we are hovering over
   if cursor.hoveredPoint then
     love.graphics.setLineWidth(1)
     love.graphics.setLineStyle('rough')
-    love.graphics.setColor(hoverColor)
+    love.graphics.setColor(hoverFlash:get_color())
 
     local point = cursor.hoveredPoint.point
     local x = point.x + 0.5
@@ -1233,19 +1213,15 @@ function draw_tool()
   end
 
   -- draw an flashing overlay over the selected polygons
-  if selectionFlash.isOn then
-    for _, poly in pairs(selectedPolygons) do
-      fillpoly(poly, selectionColor)
-    end
+  for _, poly in pairs(selectedPolygons) do
+    fillpoly(poly, selectionFlash:get_color())
   end
 
   -- draw a flashing overlay on the selected points
-  if not selectionFlash.isOn then
-    love.graphics.setPointSize(1)
-    love.graphics.setColor(selectionColor)
-    for _, sp in pairs(selectedPoints) do
-      love.graphics.points(sp.point.x + 0.5, sp.point.y + 0.5)
-    end
+  love.graphics.setPointSize(1)
+  love.graphics.setColor(selectionFlash:get_color())
+  for _, sp in pairs(selectedPoints) do
+    love.graphics.points(sp.point.x + 0.5, sp.point.y + 0.5)
   end
 
   love.graphics.setCanvas()
@@ -1401,7 +1377,7 @@ function draw_cursor()
     {centerX, centerY + 1},
   }
 
-  love.graphics.setColor(255, 255, 255, 200)
+  love.graphics.setColor(cursor.flash:get_color())
   love.graphics.points(points)
     
   love.graphics.pop()
