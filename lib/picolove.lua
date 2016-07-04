@@ -55,14 +55,14 @@ function picolove.line(x0,y0,x1,y1, loveColor)
     points = {}
     if y0 > y1 then y0,y1 = y1,y0 end
     for y=y0,y1 do
-      table.insert(points,{x0,y})
+      table.insert(points,{x0 + 0.5, y + 0.5})
     end
   elseif dy == 0 then
     -- simple case draw a horizontal line
     points = {}
     if x0 > x1 then x0,x1 = x1,x0 end
     for x=x0,x1 do
-      table.insert(points,{x,y0})
+      table.insert(points,{x + 0.5, y0 + 0.5})
     end
   else
     if dy < 0 then
@@ -88,7 +88,7 @@ function picolove.line(x0,y0,x1,y1, loveColor)
         end
         x0 = x0 + stepx
         fraction = fraction + dy
-        table.insert(points,{flr(x0),flr(y0)})
+        table.insert(points, {flr(x0) + 0.5, flr(y0) + 0.5})
       end
     else
       local fraction = dx - bit.rshift(dy, 1)
@@ -99,17 +99,14 @@ function picolove.line(x0,y0,x1,y1, loveColor)
         end
         y0 = y0 + stepy
         fraction = fraction + dx
-        table.insert(points,{flr(x0),flr(y0)})
+        table.insert(points, {flr(x0) + 0.5, flr(y0) + 0.5})
       end
     end
   end
   --lineMesh:setVertices(points)
   --lineMesh:setDrawRange(1,#points)
   --love.graphics.draw(lineMesh)
-  for i = 1, #points do
-    local p = points[i]
-    love.graphics.points(p[1] + 0.5, p[2] + 0.5)
-  end
+  love.graphics.points(points)
 end
 
 return picolove
