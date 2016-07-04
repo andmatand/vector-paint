@@ -57,6 +57,11 @@ function love.load()
 
   drawingPoints = {}
 
+  hoverFlash = {
+    time = 0,
+    isOn = true
+  }
+
   selectionFlash = {
     time = 0,
     isOn = true
@@ -299,6 +304,11 @@ function update_cursor()
   if love.timer.getTime() > selectionFlash.time + .5 then
     selectionFlash.time = love.timer.getTime()
     selectionFlash.isOn = not selectionFlash.isOn
+  end
+
+  if love.timer.getTime() > hoverFlash.time + .25 then
+    hoverFlash.time = love.timer.getTime()
+    hoverFlash.isOn = not hoverFlash.isOn
   end
 end
 
@@ -1187,35 +1197,47 @@ function draw_tool()
     draw_wip_poly()
   end
 
-  -- draw a lowlight overlay on the polygon we are hovering over
-  if cursor.hoveredPolygon then
-    love.graphics.setBlendMode('subtract')
-    fillpoly(cursor.hoveredPolygon, {255, 255, 255, 100})
-    love.graphics.setBlendMode('alpha')
+  local hoverColor = {255, 85, 255, 200}
+
+  if hoverFlash.isOn then
+    hoverColor = {0, 0, 0, 225}
   end
 
-  -- draw a lowlight overlay on the point we are hovering over
+  local selectionColor = {
+    255,
+    85,
+    255,
+    255
+  }
+
+  -- draw a overlay on the polygon we are hovering over
+  if cursor.hoveredPolygon then
+    fillpoly(cursor.hoveredPolygon, hoverColor)
+  end
+
+  -- draw a rectangle around the point we are hovering over
   if cursor.hoveredPoint then
-    love.graphics.setPointSize(5)
-    love.graphics.setColor(255, 255, 255, 100)
+    love.graphics.setLineWidth(1)
+    love.graphics.setLineStyle('rough')
+    love.graphics.setColor(hoverColor)
 
     local point = cursor.hoveredPoint.point
-    love.graphics.circle('line', point.x, point.y, 2)
+    love.graphics.rectangle('line', point.x - 1, point.y - 1, 2, 2)
   end
 
-  -- draw an outline around the selected polygons
+  -- draw an flashing outline around the selected polygons
   if selectionFlash.isOn then
     for _, poly in pairs(selectedPolygons) do
-      fillpoly(poly, {255, 255, 255, 200}, true)
+      fillpoly(poly, selectionColor, true)
     end
   end
 
-  -- draw a highlight overlay on the point we are hovering over
+  -- draw a flashing overlay on the selected points
   if not selectionFlash.isOn then
-    love.graphics.setPointSize(5)
-    love.graphics.setColor(255, 255, 255, 200)
+    love.graphics.setPointSize(1)
+    love.graphics.setColor(selectionColor)
     for _, sp in pairs(selectedPoints) do
-      love.graphics.circle('line', sp.point.x, sp.point.y, 1)
+      love.graphics.points(sp.point.x, sp.point.y)
     end
   end
 
@@ -1372,7 +1394,7 @@ function draw_cursor()
     {centerX, centerY + 1},
   }
 
-  love.graphics.setColor(255, 255, 255)
+  love.graphics.setColor(255, 255, 255, 200)
   love.graphics.points(points)
     
   love.graphics.pop()
