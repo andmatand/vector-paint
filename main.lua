@@ -201,7 +201,7 @@ function parse_painting_data(data)
 
   -- read each polygon
   repeat
-    polygon = {
+    local polygon = {
       points = {}
     }
 
