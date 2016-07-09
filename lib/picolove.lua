@@ -49,7 +49,7 @@ function picolove.line(x0,y0,x1,y1, loveColor)
   local dy = y1 - y0
   local stepx, stepy
 
-  local points = {{x0,y0}}
+  local points = {{x0 + 0.5 ,y0 + 0.5}}
 
   if dx == 0 then
     -- simple case draw a vertical line
@@ -83,7 +83,8 @@ function picolove.line(x0,y0,x1,y1, loveColor)
     if dx > dy then
       local fraction = dy - bit.rshift(dx, 1)
       while x0 ~= x1 do
-        if fraction >= 0 then
+        print(fraction)
+        if fraction > 0 then
           y0 = y0 + stepy
           fraction = fraction - dx
         end
@@ -104,6 +105,13 @@ function picolove.line(x0,y0,x1,y1, loveColor)
       end
     end
   end
+
+  -- debug
+  --print('line points:')
+  --for i = 1, #points do
+  --  print('  ' .. i, points[i][1], points[i][2])
+  --end
+
   --lineMesh:setVertices(points)
   --lineMesh:setDrawRange(1,#points)
   --love.graphics.draw(lineMesh)
