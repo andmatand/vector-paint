@@ -9,6 +9,11 @@ function love.load()
   love.filesystem.setIdentity('vector-paint')
   love.graphics.setFont(love.graphics.newFont(14))
 
+  POINT_MIN_X = 0
+  POINT_MAX_X = 255
+  POINT_MIN_Y = -1
+  POINT_MAX_Y = 254
+
   MAX_POLYGONS = 256
   MAX_POLYGON_POINTS = 256
 
@@ -68,12 +73,14 @@ function love.load()
 
   hoverFlash = ColorFlash.new(.25, {
     {255, 85, 255},
-    {0, 0, 0}
+    {0, 0, 0},
+    {255, 255, 255, 0}
   })
 
   selectionFlash = ColorFlash.new(.5, {
     {255, 255, 255, 200},
-    {0, 0, 0, 200}
+    {0, 0, 0, 200},
+    {255, 255, 255, 0}
   })
 
   mouseOnlyMode = true
@@ -97,13 +104,8 @@ function love.load()
 end
 
 function get_painting_data()
-  -- PAINTING FORMAT
-  --    bits  | description
-  --   ====================+
-  --        7 | polygon count - 1 (i.e. 0 is considered to mean 1 polygon)
-  --   to end | 1 or more POLYGONs
-  --   ^^ OH WAIT WE DON'T REALLY NEED THIS
-  --
+  -- Potentially smaller format if I end up needing more space:
+  -- 
   -- POLYGON FORMAT
   --    bits  | description
   --   =====================
@@ -112,28 +114,25 @@ function get_painting_data()
   --   to end | 3 or more POINTs
   --
   -- POINT FORMAT
-  --    bits  | description
+  --    bits | description
   --   =====================
-  --      6   | x
-  --      7   | y
+  --       6 | x
+  --       7 | y
 
   local bytes = {}
-
-  -- add the polygon count
-  --table.insert(bytes, #polygons)
 
   -- add each polygon
   for i = 1, #polygons do
     local poly = polygons[i]
 
     table.insert(bytes, #poly.points) -- point count
-    table.insert(bytes, poly.color)  -- color
+    table.insert(bytes, poly.color)   -- color
 
     -- add each point
     for j = 1, #poly.points do
       local point = poly.points[j]
       table.insert(bytes, point.x)
-      table.insert(bytes, point.y)
+      table.insert(bytes, point.y + 1) -- add 1 to y to allow -1 without sign
     end
   end
 
@@ -215,6 +214,10 @@ function parse_painting_data(data)
     for i = 1, pointCount do
       local x = reader:get_next_byte()
       local y = reader:get_next_byte()
+
+      -- adjust y back to its actual value since it is saved 1 higher than its
+      -- actual value to allow for -1 without needing a sign bit
+      y = y - 1
 
       table.insert(polygon.points, {x = x, y = y})
     end
@@ -372,6 +375,16 @@ function move_selected_points(xDelta, yDelta)
 
   if #pointsToMove > 0 then
     if xDelta ~= 0 or yDelta ~= 0 then
+      -- make sure this movement would not result in any values outside the
+      -- range which can be saved
+      for _, point in pairs(pointsToMove) do
+        if point.x + xDelta < POINT_MIN_X or point.x + xDelta > POINT_MAX_X or
+           point.y + yDelta < POINT_MIN_Y or point.y + yDelta > POINT_MAX_Y
+          then
+          return
+        end
+      end
+
       save_undo_state()
       for _, point in pairs(pointsToMove) do
         point.x = point.x + xDelta
@@ -1524,6 +1537,7 @@ function love.draw()
   love.graphics.clear(10, 10, 10)
 
   if mode == 'save' then
+    love.graphics.setColor(255, 255, 255)
     love.graphics.print('Enter filename to save to:', 20, 20)
     if currentFilename then
       love.graphics.print(currentFilename, 20, 40)
