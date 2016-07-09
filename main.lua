@@ -57,6 +57,7 @@ function love.load()
     vy = 0,
     tool = 'draw',
     color = 9,
+    isVisible = true
   }
 
   cursor.flash = ColorFlash.new(.25, {
@@ -88,15 +89,15 @@ function love.load()
   polygons = {}
 
   -- debug: add a test polygon
-  polygons[1] = {
-    color = 5,
-    points = {
-      {x = 0, y = 0},
-      {x = CANVAS_W - 1, y = 0},
-      {x = CANVAS_W - 1, y = CANVAS_H - 1},
-      {x = 0, y = CANVAS_H - 1}
-    }
-  }
+  --polygons[1] = {
+  --  color = 5,
+  --  points = {
+  --    {x = 0, y = 0},
+  --    {x = CANVAS_W - 1, y = 0},
+  --    {x = CANVAS_W - 1, y = CANVAS_H - 1},
+  --    {x = 0, y = CANVAS_H - 1}
+  --  }
+  --}
 
   undoHistory = {}
 
@@ -259,6 +260,8 @@ function update_cursor()
   local friction = .80
 
   if not mouseOnlyMode then
+    cursor.isVisible = true
+
     if not cursor.fineMode and cursor.tool ~= 'move' then
       if love.keyboard.isDown('left') then
         cursor.vx = cursor.vx - delta
@@ -298,21 +301,23 @@ function update_cursor()
   cursor.hoveredPolygon = nil
   cursor.hoveredPoint = nil
 
-  if cursor.tool == 'select polygon' then
-    -- find the top polygon under the cursor
-    local topPoly = find_top_poly(cursor)
-    if topPoly then
-      cursor.hoveredPolygon = topPoly
-    end
-  elseif cursor.tool == 'select point' then
-    -- find the top point under the cursor
-    local point, poly = find_nearest_point(cursor)
-    if poly then
-      cursor.hoveredPoint = {
-        point = point,
-        poly = poly
-      }
-      cursor.hoveredPoly = poly
+  if cursor.isVisible then
+    if cursor.tool == 'select polygon' then
+      -- find the top polygon under the cursor
+      local topPoly = find_top_poly(cursor)
+      if topPoly then
+        cursor.hoveredPolygon = topPoly
+      end
+    elseif cursor.tool == 'select point' then
+      -- find the top point under the cursor
+      local point, poly = find_nearest_point(cursor)
+      if poly then
+        cursor.hoveredPoint = {
+          point = point,
+          poly = poly
+        }
+        cursor.hoveredPoly = poly
+      end
     end
   end
 end
@@ -816,6 +821,10 @@ function pull_polygon_forward(poly)
 end
 
 function push_primary_button()
+  if not cursor.isVisible then
+    return
+  end
+
   local shiftIsDown = (love.keyboard.isDown('lshift') or
     love.keyboard.isDown('rshift'))
 
@@ -859,6 +868,10 @@ function push_primary_button()
 end
 
 function push_secondary_button()
+  if not cursor.isVisible then
+    return
+  end
+
   if cursor.tool == 'draw' then
     finalize_drawing_points()
   end
@@ -916,10 +929,18 @@ function love.mousemoved(x, y)
     -- hide the OS mouse cursor
     love.mouse.setVisible(false)
     mouseIsOnCanvas = true
+    cursor.isVisible = true
   else
     -- show the OS mouse cursor
     love.mouse.setVisible(true)
     mouseIsOnCanvas = false
+
+    if mouseOnlyMode then
+      -- hide the canvas cursor
+      cursor.isVisible = false
+      cursor.hoveredPolygon = nil
+      cursor.hoveredPoint = nil
+    end
   end
 end
 
@@ -1265,12 +1286,16 @@ function draw_status()
 
   love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 215, y)
 
+
   y = y + lineh
-  local cursorDisplayPoint = {
-    x = math.floor(cursor.x),
-    y = math.floor(cursor.y)
-  }
-  love.graphics.print(point_to_string(cursorDisplayPoint), x, y)
+  if cursor.isVisible then
+    -- show the cursor's current position
+    local cursorDisplayPoint = {
+      x = math.floor(cursor.x),
+      y = math.floor(cursor.y)
+    }
+    love.graphics.print(point_to_string(cursorDisplayPoint), x, y)
+  end
 
   y = y + lineh
   love.graphics.print('current tool: ' .. cursor.tool, x, y)
@@ -1371,7 +1396,7 @@ function get_sorted_keys(t)
 end
 
 function draw_cursor()
-  if cursor.tool == 'move' then
+  if cursor.isVisible == false or cursor.tool == 'move' then
     return
   end
 
