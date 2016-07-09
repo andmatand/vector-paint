@@ -1512,8 +1512,8 @@ function draw_wip_poly()
     love.graphics.setColor(palette[cursor.color])
     picolove.line(a.x, a.y, b.x, b.y)
 
-    -- draw a handle on this point
-    love.graphics.setColor(255, 255, 255)
+    -- draw a flashing handle on this point
+    love.graphics.setColor(selectionFlash:get_color())
     love.graphics.points(a.x + 0.5, a.y + 0.5)
   end
 end
