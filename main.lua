@@ -88,17 +88,6 @@ function love.load()
 
   polygons = {}
 
-  -- debug: add a test polygon
-  --polygons[1] = {
-  --  color = 5,
-  --  points = {
-  --    {x = 0, y = 0},
-  --    {x = CANVAS_W - 1, y = 0},
-  --    {x = CANVAS_W - 1, y = CANVAS_H - 1},
-  --    {x = 0, y = CANVAS_H - 1}
-  --  }
-  --}
-
   undoHistory = {}
 
   currentFilename = ''
@@ -1083,10 +1072,10 @@ function find_best_canvas_scale()
 end
 
 function find_bounds(points)
-  local x1 = CANVAS_W - 1
-  local x2 = 0
-  local y1 = CANVAS_H - 1
-  local y2 = 0
+  local x1 = POINT_MAX_X
+  local x2 = POINT_MIN_X
+  local y1 = POINT_MAX_Y
+  local y2 = POINT_MIN_Y
   for _, point in pairs(points) do
     if point.x < x1 then
       x1 = point.x
@@ -1122,15 +1111,23 @@ function max(a, b)
   end
 end
 
+-- round a 32-bit float to be like PICO-8's fixed 16:16
+function fix_float(x)
+  return math.floor(x * 65536) / 65536
+end
+
 function find_intersections(points, y)
   local xlist = {}
   local j = #points
 
-  for i, a in pairs(points) do
+  for i = 1, #points do
+    local a = points[i]
     local b = points[j]
 
     if (a.y < y and b.y >= y) or (b.y < y and a.y >= y) then
-      local x = a.x + (((y - a.y) / (b.y - a.y)) * (b.x - a.x))
+      local x = a.x + fix_float(
+        fix_float((y - a.y) / (b.y - a.y)) * (b.x - a.x)
+      )
 
       table.insert(xlist, x)
     end
