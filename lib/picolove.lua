@@ -1,4 +1,5 @@
--- These functions were taken from picolove
+-- The line() function in this file is taken from picolove and slightly
+-- modified
 -- <https://github.com/ftsf/picolove>
 
 -- Copyright (c) 2015 Jez Kabanov <thesleepless@gmail.com>
