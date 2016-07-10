@@ -50,6 +50,9 @@ function love.load()
   -- create a canvas to draw on
   canvas = love.graphics.newCanvas(CANVAS_W, CANVAS_H)
 
+  -- create a canvas for the tools overlay
+  toolsCanvas = love.graphics.newCanvas(CANVAS_W, CANVAS_H)
+
   cursor = {
     x = math.floor(CANVAS_W / 2),
     y = math.floor(CANVAS_H / 2),
@@ -91,6 +94,8 @@ function love.load()
   undoHistory = {}
 
   currentFilename = ''
+
+  render_polygons()
 end
 
 function get_painting_data()
@@ -214,6 +219,9 @@ function parse_painting_data(data)
 
     table.insert(polygons, polygon)
   until reader:is_at_end()
+
+  -- re-render all polygons
+  render_polygons()
 end
 
 function shallow_copy_table(t)
@@ -384,6 +392,9 @@ function move_selected_points(xDelta, yDelta)
         point.x = point.x + xDelta
         point.y = point.y + yDelta
       end
+
+      -- re-render all polygons
+      render_polygons()
     end
   end
 end
@@ -470,6 +481,9 @@ function love.keypressed(key)
       polygons = {}
       selectedPolygons = {}
       selectedPoints = {}
+
+      -- re-render all polygons
+      render_polygons()
     elseif key == 's' then
       mode = 'save'
 
@@ -557,7 +571,7 @@ function love.keypressed(key)
   end
 
   if key == 'f5' or (love.keyboard.isDown('lctrl') and key == 'r') then
-    -- force re-render
+    -- force re-render all polygons
     render_polygons()
   end
 
@@ -654,6 +668,9 @@ function love.keypressed(key)
 
       polygons = remove_values_from_table(selectedPolygons, polygons)
       set_selected_polygons({})
+
+      -- re-render all polygons
+      render_polygons()
     end
 
     if #selectedPoints > 0 then
@@ -677,6 +694,9 @@ function love.keypressed(key)
           polygons = remove_values_from_table({sp.poly}, polygons)
         end
       end
+
+      -- re-render all polygons
+      render_polygons()
     end
   end
 
@@ -1032,6 +1052,9 @@ function finalize_drawing_points()
 
   -- clear the WIP points
   drawingPoints = {}
+
+  -- re-render all polygons
+  render_polygons()
 end
 
 function love.resize()
@@ -1206,6 +1229,8 @@ function fillpoly(poly, rgba, outline)
 end
 
 function render_polygons()
+  print('re-rendering all (' .. #polygons .. ') polygons')
+
   love.graphics.setCanvas(canvas)
   love.graphics.clear(0, 0, 0)
 
@@ -1219,7 +1244,9 @@ function render_polygons()
 end
 
 function draw_tool()
-  love.graphics.setCanvas(canvas)
+  love.graphics.setCanvas(toolsCanvas)
+  love.graphics.setColor(0, 0, 0, 0)
+  love.graphics.clear()
 
   if #drawingPoints > 0 then
     -- draw the WIP polygon
@@ -1258,13 +1285,18 @@ function draw_tool()
   love.graphics.setCanvas()
 end
 
-function draw_canvas()
+function draw_canvases()
   love.graphics.push()
 
   love.graphics.scale(canvasScale, canvasScale)
 
   love.graphics.setColor(255, 255, 255)
+
+  -- draw the polygon canvas
   love.graphics.draw(canvas, canvasPos.x, canvasPos.y)
+
+  -- draw the tools cavnas on top of the polygon canvas
+  love.graphics.draw(toolsCanvas, canvasPos.x, canvasPos.y)
 
   love.graphics.pop()
 end
@@ -1529,6 +1561,9 @@ function undo()
     -- clear selections because they point to non-existant objects now
     set_selected_polygons({})
     set_selected_points({})
+
+    -- re-render all polygons
+    render_polygons()
   else
     print('no undo history remaining')
   end
@@ -1567,14 +1602,11 @@ function love.draw()
     return
   end
 
-  -- render all the polygons to the canvas
-  render_polygons()
-
-  -- draw the current tool overlays
+  -- draw the current tool on the tools canvas
   draw_tool()
 
-  -- draw the canvas
-  draw_canvas()
+  -- draw the canvases
+  draw_canvases()
 
   -- draw status stuff
   draw_status()

@@ -83,7 +83,6 @@ function picolove.line(x0,y0,x1,y1, loveColor)
     if dx > dy then
       local fraction = dy - bit.rshift(dx, 1)
       while x0 ~= x1 do
-        print(fraction)
         if fraction > 0 then
           y0 = y0 + stepy
           fraction = fraction - dx
