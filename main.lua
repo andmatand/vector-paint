@@ -319,14 +319,44 @@ function update_cursor()
   end
 end
 
+function point_on_line(point, a, b)
+  local dist1 = distance(a, point) + distance(point, b)
+  local dist2 = distance(a, b)
+
+  -- compensate for floating point inaccuracy
+  if math.abs(dist1 - dist2) <= .025 then
+    return true
+  end
+end
+
+function points_are_equal(a, b)
+  if a.x == b.x and a.y == b.y then
+    return true
+  end
+end
+
 function find_top_poly(point)
   for i = #polygons, 1, -1 do
     local poly = polygons[i]
 
-    if point_in_polygon(point, poly) then
-      return poly
+    if #poly.points == 1 then
+      if points_are_equal(point, poly.points[1]) then
+        return poly
+      end
+    elseif #poly.points == 2 then
+      if point_on_line(point, poly.points[1], poly.points[2]) then
+        return poly
+      end
+    else
+      if point_in_polygon(point, poly) then
+        return poly
+      end
     end
   end
+end
+
+function distance(a, b)
+  return math.sqrt(((a.x - b.x) ^ 2) + (a.y - b.y) ^ 2)
 end
 
 function manhattan_distance(a, b)
