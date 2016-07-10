@@ -1025,6 +1025,9 @@ function set_color(color)
     for _, poly in pairs(targetPolys) do
       poly.color = color
     end
+
+    -- re-render all polygons
+    render_polygons()
   end
 end
 
