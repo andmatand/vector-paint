@@ -50,7 +50,8 @@ https://love2d.org/wiki/love.filesystem).  Inside that folder you will find a
 "vector-paint" folder which contains your drawings.
 
 #### Loading
-To load, drag and drop a saved file onto the window.
+To load a previously saved drawing, drag and drop the file onto the window
+using your OS's file manager UI.
 
 ### How do I load/display the vector art in my PICO-8 cart?
 This program produces hexadecimal strings that you can copy and paste as a
