@@ -627,12 +627,18 @@ function love.keypressed(key)
     for i = 1, #polys do
       push_polygon_back(polys[i])
     end
+
+    -- re-render all polygons
+    render_polygons()
   elseif key == ']' then
     -- pull the selected polygons forward by one in the stack
     local polys = get_target_polygons()
     for i = 1, #polys do
       pull_polygon_forward(polys[i])
     end
+
+    -- re-render all polygons
+    render_polygons()
   end
 
   if key == 'tab' then
