@@ -19,6 +19,11 @@ easy way to resize it, but for now this is open source so fix it yourself ;p
 ### How do I use it?
 Read the lovely sections below and they will hopefully answer your every question:
 
+#### Running
+This is a LÖVE program. If you don't know how LÖVE works, [look it
+up](https://love2d.org/). The short answer is that you run `love .` inside this
+directory.
+
 #### Keyboard Commands
 ##### Tool Selection
 * P: Select Points (hold shift while clicking to select multiple points)
