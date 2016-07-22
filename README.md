@@ -55,6 +55,6 @@ using your OS's file manager UI.
 
 ### How do I load/display the vector art in my PICO-8 cart?
 This program produces hexadecimal strings that you can copy and paste as a
-string into a PICO-8 program. See the file sample-use.p8 for PICO-8 code which
-parses and displays a sample vector drawing produced by Vector Paint.
+string into a PICO-8 program.  See the file sample-use.p8 for PICO-8 code which
+parses and displays one of these strings.
 
