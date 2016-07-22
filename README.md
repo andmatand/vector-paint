@@ -40,6 +40,7 @@ directory.
 * 1/2: Select the next/previous color in the palette
 * \[: Move the selected shape(s) down in the layer ordering
 * \]: Move the selected shape(s) up in the layer ordering
+* F5: Force re-render the canvas
 
 #### Keyboard-Friendly Mode
 * K: Toggle keyboard-friendly mode
