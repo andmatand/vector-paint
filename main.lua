@@ -145,7 +145,7 @@ function save_painting(filename)
   local success = love.filesystem.write(filename, data)
 
   if success then
-    print('saved to ' .. filename)
+    print('saved to ' .. love.filesystem.getSaveDirectory() .. '/' .. filename)
   else
     love.window.showMessageBox('nooooo', 'ERROR SAVING :(', 'error')
   end
