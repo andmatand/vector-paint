@@ -5,12 +5,52 @@ This is a quick-and-dirty, domain-specific vector drawing tool for making art
 for some of my own personal PICO-8 games.  As such, it may not be very polished for
 general usage; adjust your expectations accordingly :)
 
-It supports three shape types:
+## What's the point of this?
+PICO-8 cartridges have a very limited space in which to store raster graphics
+(128x128 pixels) so I made this because I needed a way to store many screens
+worth of art in a single cartridge.
+
+Each drawing is made up of several shapes. Three different types of "shape" are supported:
 * polygon
 * line
 * single point
 
-Each shape has a color (one of the 16 PICO-8 colors)
+Each shape has a color (one of the 16 PICO-8 colors).
+
+The drawing is saved as a hex string, like this:
+
+    05090a1c291830481c451e2f06080c2f26252a4012361c520c51
+
+The format aims to be as small as possible, while remaining easy to parse.
+These strings can be stored, parsed, and rendered from within a PICO-8 cart.
+
+## How do I load/display the vector art in my PICO-8 cart?
+This program produces hexadecimal strings that you can copy and paste as a
+string into a PICO-8 program.  See the file sample-use.p8 for PICO-8 code which
+parses and displays one of these strings.
+
+## What are the details of the save format?
+The painting is a series of shapes.  Each shape's data is laid out in the following manner:
+
+| #  of bytes | description  |
+|-------------|--------------|
+|           1 | point count  |
+|           1 | color        |
+
+Then for each point, this pair of bytes repeats:
+
+| #  of bytes | description  | note                             |
+|-------------|--------------|----------------------------------|
+|           1 | x-coordinate |                                  |
+|           1 | y-coordinate | saved 1 higher than actual value |
+
+Note that 1 is added to the y-coordinate before it is saved, so when reading
+it, 1 needs to be subtracted from the value.  This is done because the numbers
+are stored in an unsigned format and we want to allow for saving the
+y-coorindate as -1.  The reason we want to be able to position things at -1 on
+the y-axis is that, because of the way the scanline rasterization algorithm
+here works, in order to draw a polygon which appears to touch the very top of
+the canvas, we actually have to position the top point(s) at -1 on the y-axis.
 
 ## Why is the canvas so tall and skinny?
 Like I said, I made this for a specific personal project...so I might add an
@@ -41,6 +81,7 @@ directory.
 * \[: Move the selected shape(s) down in the layer ordering
 * \]: Move the selected shape(s) up in the layer ordering
 * F5: Force re-render the canvas
+* U: Undo
 
 #### Keyboard-Friendly Mode
 * K: Toggle keyboard-friendly mode
@@ -58,9 +99,3 @@ https://love2d.org/wiki/love.filesystem).  Inside that folder you will find a
 #### Loading
 To load a previously saved drawing, drag and drop the file onto the window
 using your OS's file manager UI.
-
-## How do I load/display the vector art in my PICO-8 cart?
-This program produces hexadecimal strings that you can copy and paste as a
-string into a PICO-8 program.  See the file sample-use.p8 for PICO-8 code which
-parses and displays one of these strings.
-
