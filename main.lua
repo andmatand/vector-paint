@@ -5,7 +5,7 @@ require('class.colorflash')
 
 function love.load()
   CANVAS_W = 61
-  CANVAS_H = 101
+  CANVAS_H = 99
   love.filesystem.setIdentity('vector-paint')
   love.graphics.setFont(love.graphics.newFont(14))
 
