@@ -164,7 +164,17 @@ function create_painting_reader(data)
   return obj
 end
 
+function rtrim(s)
+  local n = #s
+  while n > 0 and s:find("^%s", n) do
+    n = n - 1
+  end
+  return s:sub(1, n)
+end
+
 function parse_painting_data(data)
+  data = rtrim(data)
+
   if #data == 0 then
     love.window.showMessageBox('hey!', 'that file is empty; nothing to load!')
     return
