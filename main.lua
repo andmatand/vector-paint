@@ -80,16 +80,26 @@ function love.load()
 
   drawingPoints = {}
 
-  hoverFlash = ColorFlash.new(.25, {
-    {1, .33, 1},
-    {0, 0, 0},
-    {1, 1, 1, 0}
+  hoverFlash = ColorFlash.new(.1, {
+    {1, 1, 1, .25},
+    {1, 1, 1,  .5},
+    {1, 1, 1, .75},
+    {1, 1, 1,  .5},
+    {1, 1, 1, .25},
+    {1, 1, 1,   0},
+    {0, 0, 0, .25},
+    {0, 0, 0,  .5},
+    {0, 0, 0, .75},
+    {0, 0, 0,  .5},
+    {0, 0, 0, .25},
+    {1, 1, 1,   0},
   })
 
   selectionFlash = ColorFlash.new(.5, {
-    {1, 1, 1, .75},
-    {0, 0, 0, .75},
-    {1, 1, 1, 0}
+    {1, 1, 1, .5},
+    {1, 1, 1,  0},
+    {0, 0, 0, .5},
+    {1, 1, 1,  0},
   })
 
   mouseOnlyMode = true
@@ -136,13 +146,6 @@ function save_painting(filename)
   else
     love.window.showMessageBox('nooooo :(', 'ERROR SAVING: ' .. msg, 'error')
   end
-end
-
-function load_painting(filename)
-  local data = love.filesystem.read(filename)
-
-  -- parse and apply the painting data
-  parse_painting_data(data)
 end
 
 function create_painting_reader(data)
@@ -296,7 +299,7 @@ function update_cursor()
   cursor.hoveredPoint = nil
 
   if cursor.isVisible then
-    if cursor.tool == 'select polygon' then
+    if cursor.tool == 'select shape' then
       -- find the top polygon under the cursor
       local topPoly = find_top_poly(cursor)
       if topPoly then
@@ -469,7 +472,7 @@ function love.filedropped(file)
     currentFilename = file:getFilename()
 
     -- remove all but the filename
-    currentFilename = currentFilename:match( "([^/]+)$" )
+    currentFilename = currentFilename:match("([^/]+)$")
 
     -- parse and apply the painting data
     parse_painting_data(data)
@@ -605,7 +608,7 @@ function love.keypressed(key)
     set_selected_polygons({})
     set_selected_points({})
   elseif key == 's' then
-    cursor.tool = 'select polygon'
+    cursor.tool = 'select shape'
   elseif key == 'p' then
     cursor.tool = 'select point'
   elseif key == 'm' then
@@ -636,7 +639,7 @@ function love.keypressed(key)
   end
 
   if key == 'tab' then
-    if cursor.tool == 'select polygon' or
+    if cursor.tool == 'select shape' or
        (cursor.tool ~= 'select point' and #selectedPolygons > 0) then
       if #selectedPolygons == 0 then
         if #selectedPoints == 1 then
@@ -667,7 +670,7 @@ function love.keypressed(key)
     end
 
     if cursor.tool == 'select point' or
-       (cursor.tool ~= 'select polygon' and #selectedPoints > 0) then
+       (cursor.tool ~= 'select shape' and #selectedPoints > 0) then
       if #selectedPoints == 0 and #selectedPolygons == 1 then
         local sp = {
           point = selectedPolygons[1].points[1],
@@ -869,7 +872,7 @@ function push_primary_button()
 
   if cursor.tool == 'draw' then
     draw_point()
-  elseif cursor.tool == 'select polygon' then
+  elseif cursor.tool == 'select shape' then
     if cursor.hoveredPolygon then
       if shiftIsDown then
         table.insert(selectedPolygons, cursor.hoveredPolygon)
@@ -1255,9 +1258,6 @@ function fillpoly(poly, rgba)
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
 
-      -- DEBUG: make sure the line's pixels are in the correct spot
-      --love.graphics.points(x1 + 0.5, y + 0.5)
-
       picolove.line(x1, y, x2, y)
     end
   end
@@ -1305,7 +1305,7 @@ function draw_tool()
     love.graphics.rectangle('line', x - 1, y - 1, 2, 2)
   end
 
-  -- draw an flashing overlay over the selected polygons
+  -- draw a flashing overlay over the selected polygons
   for _, poly in pairs(selectedPolygons) do
     fillpoly(poly, selectionFlash:get_color())
   end
@@ -1346,7 +1346,7 @@ function draw_status()
   local y = canvasMargin
   local lineh = love.graphics.getFont():getHeight()
 
-  love.graphics.print('total polygons: ' .. #polygons, x, y)
+  love.graphics.print('total shapes: ' .. #polygons, x, y)
 
   love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 215, y)
 
@@ -1384,7 +1384,7 @@ function draw_status()
   if selectedPolys then
     y = 300
     if #selectedPolys == 1 then
-      love.graphics.print('selected polygon:', x, y)
+      love.graphics.print('selected shape:', x, y)
       y = y + lineh
 
       local index = find_polygon_index(selectedPolys[1])
