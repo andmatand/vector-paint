@@ -1357,8 +1357,6 @@ function draw_status()
   y = y + lineh
   love.graphics.print('current tool: ' .. cursor.tool, x, y)
 
-  -- todo: print index of currently hovered shape
-
   if not mouseOnlyMode then
     y = y + lineh
 
@@ -1367,6 +1365,12 @@ function draw_status()
     else
       love.graphics.print('keyboard-friendly mode enabled', x, y)
     end
+  end
+
+  if cursor.hoveredPolygon then
+    local index = find_polygon_index(cursor.hoveredPolygon)
+    y = y + lineh
+    love.graphics.print('hovered shape index: ' .. index, x, y)
   end
 
   local selectedPolys
