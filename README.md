@@ -108,7 +108,7 @@ directory.
 * Tab: Select next shape/point
 * Shift Tab: Select previous shape/point
 * Delete or Backspace: Delete whatever is selected
-##### Operation when exactly two points are selected
+##### Operation when exactly two points from the same polygon are selected
 * I: Insert a point at the midpoint between the two selected points
 
 #### Saving
