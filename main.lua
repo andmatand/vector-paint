@@ -1070,15 +1070,6 @@ function finalize_drawing_points()
     return
   end
 
-  --local points = {}
-
-  --if #drawingPoints <= 3 then
-  --  points = copy_table(drawingPoints)
-  --  table.remove(points, #points)
-  --else
-  --  points = copy_table(drawingPoints)
-  --end
-
   -- finalize the WIP polygon
   table.insert(polygons,
     {
@@ -1228,24 +1219,27 @@ function point_in_polygon(point, poly)
   return c
 end
 
-function fillpoly(poly, rgba)
+function draw_shape(poly, rgba)
   love.graphics.setColor(rgba)
   love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle('rough')
 
   if #poly.points == 1 then
-    -- draw a point instead of a polygon
+    -- draw a point
     love.graphics.points(poly.points[1].x + 0.5, poly.points[1].y + 0.5)
-    return
   elseif #poly.points == 2 then
     -- draw a line
     picolove.line(
       poly.points[1].x, poly.points[1].y,
       poly.points[2].x, poly.points[2].y)
-    return
+  else
+    -- draw a polygon
+    fill_polygon(poly)
   end
+end
 
+function fill_polygon(poly)
   -- find the bounds of the polygon
   local x1, x2, y1, y2 = find_bounds(poly.points)
 
@@ -1270,9 +1264,8 @@ function render_polygons()
   love.graphics.clear(0, 0, 0, 1)
 
   for i = 1, #polygons do
-    local poly = polygons[i]
-
-    fillpoly(poly, palette[poly.color])
+    local shape = polygons[i]
+    draw_shape(shape, palette[shape.color])
   end
 
   love.graphics.setCanvas()
@@ -1290,7 +1283,7 @@ function draw_tool()
 
   -- draw a overlay on the polygon we are hovering over
   if cursor.hoveredPolygon then
-    fillpoly(cursor.hoveredPolygon, hoverFlash:get_color())
+    draw_shape(cursor.hoveredPolygon, hoverFlash:get_color())
   end
 
   -- draw a rectangle around the point we are hovering over
@@ -1307,7 +1300,7 @@ function draw_tool()
 
   -- draw a flashing overlay over the selected polygons
   for _, poly in pairs(selectedPolygons) do
-    fillpoly(poly, selectionFlash:get_color())
+    draw_shape(poly, selectionFlash:get_color())
   end
 
   -- draw a flashing overlay on the selected points
@@ -1325,7 +1318,7 @@ function draw_canvases()
 
   love.graphics.scale(canvasScale, canvasScale)
 
-  love.graphics.setColor(255, 255, 255)
+  love.graphics.setColor(1, 1, 1)
 
   -- draw the polygon canvas
   love.graphics.draw(canvas, canvasPos.x, canvasPos.y)
@@ -1341,7 +1334,7 @@ function point_to_string(point)
 end
 
 function draw_status()
-  love.graphics.setColor(255, 255, 255)
+  love.graphics.setColor(1, 1, 1)
   local x = (CANVAS_W * canvasScale) + (canvasMargin * 2)
   local y = canvasMargin
   local lineh = love.graphics.getFont():getHeight()
@@ -1364,6 +1357,8 @@ function draw_status()
   y = y + lineh
   love.graphics.print('current tool: ' .. cursor.tool, x, y)
 
+  -- todo: print index of currently hovered shape
+
   if not mouseOnlyMode then
     y = y + lineh
 
@@ -1376,7 +1371,7 @@ function draw_status()
 
   local selectedPolys
   if #drawingPoints > 0 then
-    selectedPolys = {{points = drawingPoints}}
+    selectedPolys = {{points = drawingPoints, color = cursor.color}}
   else
     selectedPolys = selectedPolygons
   end
@@ -1390,6 +1385,15 @@ function draw_status()
       local index = find_polygon_index(selectedPolys[1])
       if index then
         love.graphics.print('  index: ' .. find_polygon_index(selectedPolys[1]),
+          x, y)
+        y = y + lineh
+      end
+
+      if selectedPolys[1].color then
+        love.graphics.print(
+          {{1, 1, 1}, '  color: ',
+           palette[selectedPolys[1].color], selectedPolys[1].color
+          },
           x, y)
         y = y + lineh
       end
@@ -1653,7 +1657,7 @@ function love.draw()
   love.graphics.clear(.04, .04, .04)
 
   if mode == 'save' then
-    love.graphics.setColor(255, 255, 255)
+    love.graphics.setColor(1, 1, 1)
     love.graphics.print('Enter filename to save to:', 20, 20)
     if currentFilename then
       love.graphics.print(currentFilename, 20, 40)
