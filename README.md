@@ -67,11 +67,11 @@ directory.
 
 ### Keyboard Commands
 #### Tool Selection
-* D: *D*raw
-* P: Select *P*oints (hold shift while clicking to select multiple points)
-* S: Select *S*hapes (hold shift while clicking to select multiple shapes)
-* C: Replace *C*olor of selected shape(s)
-* M: *M*ove tool (use cursor keys to move the selected point(s)/shape(s))
+* D: **D**raw
+* P: Select **P**oints (hold shift while clicking to select multiple points)
+* S: Select **S**hapes (hold shift while clicking to select multiple shapes)
+* C: Replace **C**olor of selected shape(s)
+* M: **M**ove tool (use cursor keys to move the selected point(s)/shape(s))
   * Note: When not in keyboard-friendly mode, you don't need to use this mode;
     the arrow keys can be used at any time to move the selected
     point(s)/shape(s)
