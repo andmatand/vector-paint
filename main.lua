@@ -81,15 +81,15 @@ function love.load()
   drawingPoints = {}
 
   hoverFlash = ColorFlash.new(.25, {
-    {255, 85, 255},
+    {1, .33, 1},
     {0, 0, 0},
-    {255, 255, 255, 0}
+    {1, 1, 1, 0}
   })
 
   selectionFlash = ColorFlash.new(.5, {
-    {255, 255, 255, 200},
-    {0, 0, 0, 200},
-    {255, 255, 255, 0}
+    {1, 1, 1, .75},
+    {0, 0, 0, .75},
+    {1, 1, 1, 0}
   })
 
   mouseOnlyMode = true
@@ -1225,7 +1225,7 @@ function point_in_polygon(point, poly)
   return c
 end
 
-function fillpoly(poly, rgba, outline)
+function fillpoly(poly, rgba)
   love.graphics.setColor(rgba)
   love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
