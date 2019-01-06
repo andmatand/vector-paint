@@ -4,9 +4,8 @@ local picolove = require('lib.picolove')
 require('class.colorflash')
 
 function love.load()
-  CANVAS_W = 61
-  CANVAS_H = 99
-  love.filesystem.setIdentity('vector-paint')
+  CANVAS_W = 128
+  CANVAS_H = 128
   love.graphics.setFont(love.graphics.newFont(14))
 
   POINT_MIN_X = 0
@@ -18,7 +17,6 @@ function love.load()
   MAX_POLYGON_POINTS = 256
 
   canvasMargin = 50
-  find_best_canvas_scale()
 
   love.keyboard.setKeyRepeat(true)
 
@@ -39,6 +37,13 @@ function love.load()
   palette[13] = {131, 118, 156}
   palette[14] = {255, 119, 168}
   palette[15] = {255, 204, 170}
+
+  -- convert palette colors to 0-1 scale for LÖVE 11.0+
+  for _, p in pairs(palette) do
+    for c = 1, 3 do
+      p[c] = p[c] / 255
+    end
+  end
 
   -- create a table to store positions of palette color boxes in the UI
   paletteBox = {}
@@ -88,32 +93,14 @@ function love.load()
   })
 
   mouseOnlyMode = true
-
-  polygons = {}
-
-  undoHistory = {}
-
   currentFilename = ''
 
-  render_polygons()
+  polygons = {}
+  undoHistory = {}
+  find_best_canvas_scale()
 end
 
 function get_painting_data()
-  -- Potentially smaller format if I end up needing more space:
-  -- 
-  -- POLYGON FORMAT
-  --    bits  | description
-  --   =====================
-  --        6 | point count - 3 (i.e. 0 is considered to mean 3 points)
-  --        4 | color
-  --   to end | 3 or more POINTs
-  --
-  -- POINT FORMAT
-  --    bits | description
-  --   =====================
-  --       6 | x
-  --       7 | y
-
   local bytes = {}
 
   -- add each polygon
@@ -142,12 +129,12 @@ end
 function save_painting(filename)
   local data = get_painting_data()
 
-  local success = love.filesystem.write(filename, data)
+  local success, msg = love.filesystem.write(filename, data)
 
   if success then
     print('saved to ' .. love.filesystem.getSaveDirectory() .. '/' .. filename)
   else
-    love.window.showMessageBox('nooooo', 'ERROR SAVING :(', 'error')
+    love.window.showMessageBox('nooooo :(', 'ERROR SAVING: ' .. msg, 'error')
   end
 end
 
@@ -470,7 +457,7 @@ function love.filedropped(file)
 
   if data then
     currentFilename = file:getFilename()
-    
+
     -- remove all but the filename
     currentFilename = currentFilename:match( "([^/]+)$" )
 
@@ -526,7 +513,7 @@ function love.keypressed(key)
     -- toggle between mouse-only mode (in which the arrow keys always move
     -- points, even if the move tool is not selected) and keyboard-friendly
     -- mode
-    
+
     mouseOnlyMode = not mouseOnlyMode
 
     if mouseOnlyMode then
@@ -578,10 +565,7 @@ function love.keypressed(key)
   end
 
   if key == 'f11' then
-    local fs = love.window.getFullscreen()
-
-    love.window.setFullscreen(not fs, 'desktop')
-    find_best_canvas_scale()
+    toggle_fullscreen()
   end
 
   if key == '1' then
@@ -1131,6 +1115,8 @@ function find_best_canvas_scale()
     x = canvasMargin / canvasScale,
     y = canvasMargin / canvasScale
   }
+
+  render_polygons()
 end
 
 function find_bounds(points)
@@ -1271,7 +1257,7 @@ function render_polygons()
   print('re-rendering all (' .. #polygons .. ') polygons')
 
   love.graphics.setCanvas(canvas)
-  love.graphics.clear(0, 0, 0)
+  love.graphics.clear(0, 0, 0, 1)
 
   for i = 1, #polygons do
     local poly = polygons[i]
@@ -1485,7 +1471,7 @@ function draw_cursor()
 
   love.graphics.setColor(cursor.flash:get_color())
   love.graphics.points(points)
-    
+
   love.graphics.pop()
 end
 
@@ -1551,7 +1537,7 @@ function draw_palette()
     paletteDisplay.colorW - lineW,
     paletteDisplay.colorH - lineW)
 
-  love.graphics.setColor(255, 255, 255)
+  love.graphics.setColor(1, 1, 1)
   love.graphics.rectangle('line',
     paletteBox[cursor.color].x - (lineW / 2),
     paletteBox[cursor.color].y - (lineW / 2),
@@ -1622,6 +1608,30 @@ function save_undo_state()
   table.insert(undoHistory, state)
 end
 
+function toggle_fullscreen()
+  local w, h, flags = love.window.getMode()
+  if not flags.fullscreen then
+    lastWindowMode = {
+      w = w,
+      h = h,
+      flags = flags
+    }
+  end
+
+  if flags.fullscreen then
+    if lastWindowMode then
+      love.window.setMode(
+      lastWindowMode.w,
+      lastWindowMode.h,
+      lastWindowMode.flags)
+    end
+  else
+    love.window.setFullscreen(not flags.fullscreen, 'desktop')
+  end
+
+  find_best_canvas_scale()
+end
+
 function love.update()
   update_cursor()
   update_palette_display()
@@ -1630,7 +1640,7 @@ end
 function love.draw()
   -- clear the screen
   love.graphics.setCanvas()
-  love.graphics.clear(10, 10, 10)
+  love.graphics.clear(.04, .04, .04)
 
   if mode == 'save' then
     love.graphics.setColor(255, 255, 255)

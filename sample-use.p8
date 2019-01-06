@@ -29,10 +29,6 @@ function draw_shape(shape)
   end
 end
 
-function ceil(n)
-  return -flr(-n)
-end
-
 function find_bounds(points)
   local x1 = 32767
   local x2 = 0
@@ -94,13 +90,13 @@ function sort(t)
     local j = i
     while j > 1 and t[j - 1] > t[j] do
       t[j - 1], t[j] = t[j], t[j - 1]
-      j = j - 1
+      j -= 1
     end
   end
 end
 
 function create_painting_reader(data)
-  local obj = {
+  return {
     i = 1,
     data = data,
 
@@ -114,8 +110,6 @@ function create_painting_reader(data)
       return (self.i > #data)
     end
   }
-
-  return obj
 end
 
 function parse_painting(data)
@@ -133,13 +127,13 @@ function parse_painting(data)
     }
 
     -- read the point count
-    local pointCount = reader:get_next_byte()
+    local pointcount = reader:get_next_byte()
 
     -- read the color
     shape.color = reader:get_next_byte()
 
     -- read each point
-    for i = 1, pointCount do
+    for i = 1, pointcount do
       local x = reader:get_next_byte()
       local y = reader:get_next_byte()
 
