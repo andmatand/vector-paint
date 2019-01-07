@@ -125,3 +125,7 @@ typed in the "save" dialog.
 #### Loading
 To load a previously saved drawing, drag and drop the file onto the window
 using your OS's file manager UI.
+
+Alternately, you may run the program with a command-line argument which is
+interpreted as a filename to load. The file must be inside the save directory,
+and the path must be relative to that folder.

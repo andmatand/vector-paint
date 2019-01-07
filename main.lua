@@ -3,7 +3,7 @@ local bit = require('bit')
 local picolove = require('lib.picolove')
 require('class.colorflash')
 
-function love.load()
+function love.load(arg)
   CANVAS_W = 128
   CANVAS_H = 128
   love.graphics.setFont(love.graphics.newFont(14))
@@ -108,6 +108,11 @@ function love.load()
   polygons = {}
   undoHistory = {}
   find_best_canvas_scale()
+
+  -- If a command-line argument is given, treat it as a filename to load
+  if #arg > 0 then
+    load_painting(arg[1])
+  end
 end
 
 function get_painting_data()
