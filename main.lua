@@ -894,11 +894,20 @@ function push_primary_button()
   elseif cursor.tool == 'select shape' then
     if cursor.hoveredPolygon then
       if shiftIsDown then
-        table.insert(selectedPolygons, cursor.hoveredPolygon)
+        -- look for this shape in the selectedPolygons table
+        local existingIndex = table_has_value(selectedPolygons,
+          cursor.hoveredPolygon)
+
+        -- If this shape is already in the selectedPolygons table
+        if existingIndex then
+          table.remove(selectedPolygons, existingIndex)
+        else
+          table.insert(selectedPolygons, cursor.hoveredPolygon)
+        end
       else
         set_selected_polygons({cursor.hoveredPolygon})
       end
-    else
+    elseif not shiftIsDown then
       set_selected_polygons({})
     end
   elseif cursor.tool == 'select point' then
@@ -922,7 +931,7 @@ function push_primary_button()
       else
         set_selected_points({cursor.hoveredPoint})
       end
-    else
+    elseif not shiftIsDown then
       set_selected_points({})
     end
   end
@@ -1056,7 +1065,7 @@ end
 function table_has_value(t, value)
   for k, v in pairs(t) do
     if v == value then
-      return true
+      return k
     end
   end
 
@@ -1441,7 +1450,13 @@ function draw_status()
       end
     elseif #selectedPolys > 1 then
       love.graphics.print(
-        'selected polygons: ' .. #selectedPolys, x, y)
+        'selected shapes: ' .. #selectedPolys, x, y)
+      for _, shape in ipairs(selectedPolys) do
+        local shapeType = shape_type(shape)
+        local index = find_polygon_index(shape)
+        y = y + lineh
+        love.graphics.print('  ' .. shapeType .. ' ' .. index, x, y)
+      end
     end
   end
 
@@ -1465,8 +1480,9 @@ function draw_status()
 
     for i = 1, #sortedKeys do
       local key = sortedKeys[i]
+      local shapeType = shape_type(groups[key][1].poly)
 
-      love.graphics.print('  polygon ' .. key .. ':', x, y)
+      love.graphics.print('  from ' .. shapeType .. ' ' .. key .. ':', x, y)
       y = y + lineh
 
       for j = 1, #groups[key] do
@@ -1477,12 +1493,6 @@ function draw_status()
         y = y + lineh
       end
     end
-
-    --for i = 1, #selectedPoints do
-    --  local point = selectedPoints[i].point
-    --  y = y + lineh
-    --  love.graphics.print(point_to_string(point) .. ' polygon ' .. , x, y)
-    --end
   end
 end
 
@@ -1495,6 +1505,16 @@ function get_sorted_keys(t)
   table.sort(keys)
 
   return keys
+end
+
+function shape_type(shape)
+  if #shape.points == 1 then
+    return 'dot'
+  elseif #shape.points == 2 then
+    return 'line'
+  end
+
+  return 'polygon'
 end
 
 function draw_cursor()
