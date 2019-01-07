@@ -6,16 +6,26 @@ function ColorFlash.new(delay, colors)
     time = 0,
     delay = delay,
     colors = colors,
-    colorIndex = 1
+    colorIndex = 1,
+    enabled = true
   }
   setmetatable(obj, ColorFlash)
 
   return obj
 end
 
+function ColorFlash:is_enabled()
+  return self.enabled
+end
+
+function ColorFlash:set_enabled(enabled)
+  self.enabled = enabled
+end
+
 function ColorFlash:reset()
   self.time = love.timer.getTime()
   self.colorIndex = 1
+  self.enabled = true
 end
 
 function ColorFlash:update()
@@ -30,5 +40,9 @@ function ColorFlash:update()
 end
 
 function ColorFlash:get_color()
-  return self.colors[self.colorIndex]
+  if self.enabled then
+    return self.colors[self.colorIndex]
+  end
+
+  return {0, 0, 0, 0}
 end

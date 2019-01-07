@@ -153,11 +153,6 @@ function set_current_filename(filename)
   currentFilename = currentFilename:match("([^/]+)$")
 end
 
-function load_painting_data(data)
-  -- parse and apply the painting data
-  parse_painting_data(data)
-end
-
 function save_painting(filename)
   local data = get_painting_data()
 
@@ -197,7 +192,7 @@ function rtrim(s)
   return s:sub(1, n)
 end
 
-function parse_painting_data(data)
+function load_painting_data(data)
   data = rtrim(data)
 
   if #data == 0 then
@@ -541,7 +536,7 @@ function love.keypressed(key)
     end
   end
 
-  if key == 'k' then
+  if key == 'k' and not shiftIsDown then
     -- toggle between mouse-only mode (in which the arrow keys always move
     -- points, even if the move tool is not selected) and keyboard-friendly
     -- mode
@@ -556,7 +551,7 @@ function love.keypressed(key)
   end
 
   -- toggle fine-movement mode for the keyboard-cursor
-  if key == 'f' then
+  if key == 'k' and shiftIsDown then
     cursor.fineMode = not cursor.fineMode
 
     if not cursor.fineMode then
@@ -754,10 +749,10 @@ function love.keypressed(key)
 
   if key == 'i' then
     insert_point()
-  end
-
-  if key == 'u' then
+  elseif key == 'u' then
     undo()
+  elseif key == 'h' then
+    selectionFlash:set_enabled(not selectionFlash:is_enabled())
   end
 end
 
@@ -1384,6 +1379,11 @@ function draw_status()
     else
       love.graphics.print('keyboard-friendly mode enabled', x, y)
     end
+  end
+
+  if not selectionFlash:is_enabled() then
+    y = y + lineh
+    love.graphics.print('selection highlight disabled', x, y)
   end
 
   if cursor.hoveredPolygon then

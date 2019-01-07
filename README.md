@@ -67,12 +67,12 @@ directory.
 
 ### Keyboard Commands
 #### Tool Selection
-* D: **D**raw
-* P: Select **P**oints (hold shift while clicking to select multiple points)
-* S: Select **S**hapes (hold shift while clicking to select multiple shapes)
-* C: Replace **C**olor of selected shape(s)
-* M: **M**ove tool (use cursor keys to move the selected point(s)/shape(s))
-  * Note: When not in keyboard-friendly mode, you don't need to use this mode;
+* d: **D**raw
+* p: Select **P**oints (hold shift while clicking to select multiple points)
+* s: Select **S**hapes (hold shift while clicking to select multiple shapes)
+* c: Replace **C**olor of selected shape(s)
+* m: **M**ove tool (use cursor keys to move the selected point(s)/shape(s))
+  * Note: When not in Keyboard-Friendly Mode, you don't need to use this mode;
     the arrow keys can be used at any time to move the selected
     point(s)/shape(s)
 
@@ -85,19 +85,23 @@ directory.
 * \[: Move the selected shape(s) down in the layer ordering
 * \]: Move the selected shape(s) up in the layer ordering
 * F5: Force re-render the canvas (probably not necesary unless there's a bug)
-* U: Undo
+* u: **U**ndo
+* h: Toggle **h**ighlight of currently selected shape
 * Esc: Abort current drawing operation and deselect everything
-* K: Toggle keyboard-friendly mode
-  * Keyboard-friendly mode allows using the keyboard's arrow keys to move the
+* k: Toggle **K**eyboard-Friendly Mode
+  * Keyboard-Friendly Mode allows using the keyboard's arrow keys to move the
     cursor at any time just like the mouse does.
   * Press Z or Space to do what Left-Click normally does
   * This disables use of the arrow keys as a dedicated move tool; i.e. you must
     first press M to enter move mode in order to move things
+* K: Toggle Fine **K**eyboard-cursor movement (when in Keyboard-Friendly Mode)
+  * Use this to disable the momentum-based movement that the normal keyboard
+    cursor uses, and instead move the cursor 1 pixel per keypress
 
 #### Buttons which all act as the "Action Button" for the current tool
 * Left-Click
 * Space
-* Z
+* z
 
 #### "Draw" Tool
 * Action Button: Place a point under the cursor
@@ -109,7 +113,7 @@ directory.
 * Shift Tab: Select previous shape/point
 * Delete or Backspace: Delete whatever is selected
 ##### Operation when exactly two points from the same polygon are selected
-* I: Insert a point at the midpoint between the two selected points
+* i: Insert a point at the midpoint between the two selected points
 
 #### Saving
 Since this is a LÖVE program, it is only allowed to write to a folder inside a
