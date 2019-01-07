@@ -75,7 +75,7 @@ function love.load(arg)
     palette[7]
   })
 
-  selectedPolygons = {}
+  selectedShapes = {}
   selectedPoints = {}
 
   drawingPoints = {}
@@ -209,7 +209,7 @@ function load_painting_data(data)
 
   -- clear the existing painting
   polygons = {}
-  selectedPolygons = {}
+  selectedShapes = {}
   selectedPoints = {}
   --undoHistory = {}
 
@@ -419,8 +419,8 @@ function move_selected_points(xDelta, yDelta)
     end
   -- if there are no specifically selected points, but there are whole polygons
   -- selected, move all points in the selected polygons
-  elseif #selectedPoints == 0 and #selectedPolygons > 0 then
-    for _, poly in pairs(selectedPolygons) do
+  elseif #selectedPoints == 0 and #selectedShapes > 0 then
+    for _, poly in pairs(selectedShapes) do
       for _, point in pairs(poly.points) do
         table.insert(pointsToMove, point)
       end
@@ -451,22 +451,72 @@ function move_selected_points(xDelta, yDelta)
   end
 end
 
-function set_selected_polygons(points)
-  selectedPolygons = points
+function set_selected_shapes(shapes)
+  selectedShapes = shapes
   selectedPoints = {}
   selectionFlash:reset()
 end
 
 function set_selected_points(pointRefs)
   selectedPoints = pointRefs
-  selectedPolygons = {}
+  selectedShapes = {}
   selectionFlash:reset()
 end
 
 function choose_existing_file()
+  -- TODO
   --local pressed = love.window.showMessageBox
-
   --return filenames[pressed]
+end
+
+function copy(shapes)
+  -- make sure the shapes are in the same order as the source shapes' indicies
+  local indexesAndShapes = {}
+  for _, shape in pairs(shapes) do
+    local index = find_polygon_index(shape)
+    local copiedShape = copy_table(shape)
+    table.insert(indexesAndShapes, {index = index, shape = copiedShape})
+  end
+
+  table.sort(indexesAndShapes, function (a, b)
+    return a.index < b.index
+  end)
+
+  clipboard = {}
+  for _, entry in ipairs(indexesAndShapes) do
+    table.insert(clipboard, entry.shape)
+  end
+
+  print('copied ' .. #clipboard .. ' shapes')
+end
+
+-- paste so that the top-left point is at (x,y)
+function paste(x, y)
+  -- Find the point which is farthest to the top-left
+  local topLeft = {x = CANVAS_W, y = CANVAS_H}
+  for _, shape in pairs(clipboard) do
+    local x1, _, y1, _ = find_bounds(shape.points)
+
+    topLeft.x = math.min(x1, topLeft.x)
+    topLeft.y = math.min(y1, topLeft.y)
+  end
+
+  -- Copy each shape in the clipboard and shift it over based on the target
+  -- position
+  local newShapes = {}
+  for _, shape in pairs(clipboard) do
+    local newShape = copy_table(shape)
+    for _, point in pairs(newShape.points) do
+      point.x = point.x - topLeft.x + x
+      point.y = point.y - topLeft.y + y
+    end
+    table.insert(newShapes, newShape)
+    table.insert(polygons, newShape)
+  end
+
+  set_selected_shapes(newShapes)
+  print('pasted ' .. #newShapes .. ' shapes')
+  render_polygons()
 end
 
 function love.textinput(t)
@@ -485,6 +535,16 @@ function rtrim(s)
   return s:sub(1, n)
 end
 
+function ctrl_is_down()
+  if love.system.getOS() == 'OS X' then
+    if love.keyboard.isDown('lgui') or love.keyboard.isDown('rgui') then
+      return true
+    end
+  end
+
+  return love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') 
+end
+
 function love.filedropped(file)
   print('loading painting from dropped file "' .. file:getFilename() .. '"')
 
@@ -495,6 +555,16 @@ function love.filedropped(file)
   if data then
     load_painting_data(data)
     set_current_filename(file:getFilename())
+  end
+end
+
+function set_mouse_only_mode(enabled)
+  mouseOnlyMode = enabled
+
+  if mouseOnlyMode then
+    -- halt the cursor's current momentum
+    cursor.vx = 0
+    cursor.vy = 0
   end
 end
 
@@ -519,8 +589,9 @@ function love.keypressed(key)
 
   local shiftIsDown = (love.keyboard.isDown('lshift') or
     love.keyboard.isDown('rshift'))
+  local ctrlIsDown = ctrl_is_down()
 
-  if love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') then
+  if ctrlIsDown then
     if key == 'n' then
       -- todo: confirm here, but window.showMessageBox with buttons is bugged
 
@@ -528,7 +599,7 @@ function love.keypressed(key)
 
       currentFilename = ''
       polygons = {}
-      selectedPolygons = {}
+      selectedShapes = {}
       selectedPoints = {}
 
       -- re-render all polygons
@@ -538,26 +609,60 @@ function love.keypressed(key)
 
       -- don't let this key trigger anything else below
       return
+    elseif key == 'q' then
+      love.event.quit()
+    elseif key == 'c' and #selectedShapes > 0 then
+      copy(selectedShapes)
+    elseif key == 'v' and clipboard then
+      save_undo_state()
+      if mouseIsOnCanvas then
+        paste(cursor.x, cursor.y)
+      else
+        paste(0, 0)
+      end
     end
-  end
+  elseif not shiftIsDown then
+    -- switch tools
+    if key == 'd' then
+      cursor.tool = 'draw'
+      set_selected_shapes({})
+      set_selected_points({})
+    elseif key == 's' then
+      cursor.tool = 'select shape'
+    elseif key == 'p' then
+      cursor.tool = 'select point'
+    elseif key == 'm' then
+      cursor.tool = 'move'
+    elseif key == 'c' then
+      cursor.tool = 'change color'
+      set_color(cursor.color)
+    end
 
-  if key == 'k' and not shiftIsDown then
-    -- toggle between mouse-only mode (in which the arrow keys always move
-    -- points, even if the move tool is not selected) and keyboard-friendly
-    -- mode
+    if key == 'k' then
+      set_mouse_only_mode(not mouseOnlyMode)
+    end
 
-    mouseOnlyMode = not mouseOnlyMode
-
-    if mouseOnlyMode then
-      -- halt the cursor's current momentum
-      cursor.vx = 0
-      cursor.vy = 0
+    if key == 'z' or key == 'space' then
+      push_primary_button()
+    elseif key == 'return' then
+      push_secondary_button()
+    elseif key == 'i' then
+      insert_point()
+    elseif key == 'u' then
+      undo()
+    elseif key == 'h' then
+      selectionFlash:set_enabled(not selectionFlash:is_enabled())
     end
   end
 
   -- toggle fine-movement mode for the keyboard-cursor
   if key == 'k' and shiftIsDown then
-    cursor.fineMode = not cursor.fineMode
+    if mouseOnlyMode then
+      set_mouse_only_mode(false)
+      cursor.fineMode = true
+    else
+      cursor.fineMode = not cursor.fineMode
+    end
 
     if not cursor.fineMode then
       -- halt the cursor's current momentum
@@ -590,12 +695,6 @@ function love.keypressed(key)
     end
   end
 
-  if love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') then
-    if key == 'q' then
-      love.event.quit()
-    end
-  end
-
   if key == 'f11' then
     toggle_fullscreen()
   end
@@ -610,31 +709,9 @@ function love.keypressed(key)
     end
   end
 
-  if key == 'z' or key == 'space' then
-    push_primary_button()
-  elseif key == 'return' then
-    push_secondary_button()
-  end
-
-  if key == 'f5' or (love.keyboard.isDown('lctrl') and key == 'r') then
+  if key == 'f5' then
     -- force re-render all polygons
     render_polygons()
-  end
-
-  -- switch tools
-  if key == 'd' then
-    cursor.tool = 'draw'
-    set_selected_polygons({})
-    set_selected_points({})
-  elseif key == 's' then
-    cursor.tool = 'select shape'
-  elseif key == 'p' then
-    cursor.tool = 'select point'
-  elseif key == 'm' then
-    cursor.tool = 'move'
-  elseif key == 'c' then
-    cursor.tool = 'change color'
-    set_color(cursor.color)
   end
 
   if key == '[' then
@@ -659,16 +736,16 @@ function love.keypressed(key)
 
   if key == 'tab' then
     if cursor.tool == 'select shape' or
-       (cursor.tool ~= 'select point' and #selectedPolygons > 0) then
-      if #selectedPolygons == 0 then
+       (cursor.tool ~= 'select point' and #selectedShapes > 0) then
+      if #selectedShapes == 0 then
         if #selectedPoints == 1 then
           local poly = selectedPoints[1].poly
-          set_selected_polygons({poly})
+          set_selected_shapes({poly})
         else
-          set_selected_polygons({polygons[1]})
+          set_selected_shapes({polygons[1]})
         end
-      elseif #selectedPolygons == 1 then
-        local index = find_polygon_index(selectedPolygons[1])
+      elseif #selectedShapes == 1 then
+        local index = find_polygon_index(selectedShapes[1])
 
         if index then
           local nextIndex
@@ -683,17 +760,17 @@ function love.keypressed(key)
             nextIndex = 1
           end
 
-          set_selected_polygons({polygons[nextIndex]})
+          set_selected_shapes({polygons[nextIndex]})
         end
       end
     end
 
     if cursor.tool == 'select point' or
        (cursor.tool ~= 'select shape' and #selectedPoints > 0) then
-      if #selectedPoints == 0 and #selectedPolygons == 1 then
+      if #selectedPoints == 0 and #selectedShapes == 1 then
         local sp = {
-          point = selectedPolygons[1].points[1],
-          poly = selectedPolygons[1]
+          point = selectedShapes[1].points[1],
+          poly = selectedShapes[1]
         }
 
         set_selected_points({sp})
@@ -710,16 +787,16 @@ function love.keypressed(key)
 
   if key == 'escape' then
     drawingPoints = {}
-    set_selected_polygons({})
+    set_selected_shapes({})
     set_selected_points({})
   end
 
   if key == 'delete' or key == 'backspace' then
-    if #selectedPolygons > 0 then
+    if #selectedShapes > 0 then
       save_undo_state()
 
-      polygons = remove_values_from_table(selectedPolygons, polygons)
-      set_selected_polygons({})
+      polygons = remove_values_from_table(selectedShapes, polygons)
+      set_selected_shapes({})
 
       -- re-render all polygons
       render_polygons()
@@ -750,14 +827,6 @@ function love.keypressed(key)
       -- re-render all polygons
       render_polygons()
     end
-  end
-
-  if key == 'i' then
-    insert_point()
-  elseif key == 'u' then
-    undo()
-  elseif key == 'h' then
-    selectionFlash:set_enabled(not selectionFlash:is_enabled())
   end
 end
 
@@ -894,21 +963,21 @@ function push_primary_button()
   elseif cursor.tool == 'select shape' then
     if cursor.hoveredPolygon then
       if shiftIsDown then
-        -- look for this shape in the selectedPolygons table
-        local existingIndex = table_has_value(selectedPolygons,
+        -- look for this shape in the selectedShapes table
+        local existingIndex = table_has_value(selectedShapes,
           cursor.hoveredPolygon)
 
-        -- If this shape is already in the selectedPolygons table
+        -- If this shape is already in the selectedShapes table
         if existingIndex then
-          table.remove(selectedPolygons, existingIndex)
+          table.remove(selectedShapes, existingIndex)
         else
-          table.insert(selectedPolygons, cursor.hoveredPolygon)
+          table.insert(selectedShapes, cursor.hoveredPolygon)
         end
       else
-        set_selected_polygons({cursor.hoveredPolygon})
+        set_selected_shapes({cursor.hoveredPolygon})
       end
     elseif not shiftIsDown then
-      set_selected_polygons({})
+      set_selected_shapes({})
     end
   elseif cursor.tool == 'select point' then
     if cursor.hoveredPoint then
@@ -1030,8 +1099,8 @@ end
 function get_target_polygons()
   local targetPolys = {}
 
-  if #selectedPolygons > 0 then
-    targetPolys = selectedPolygons
+  if #selectedShapes > 0 then
+    targetPolys = selectedShapes
   elseif #selectedPoints > 0 then
     -- add each polygon that has any point selected
     for _, sp in pairs(selectedPoints) do
@@ -1175,22 +1244,6 @@ function find_bounds(points)
   return x1, x2, y1, y2
 end
 
-function min(a, b)
-  if a < b then
-    return a
-  else
-    return b
-  end
-end
-
-function max(a, b)
-  if a > b then
-    return a
-  else
-    return b
-  end
-end
-
 -- round a 32-bit float to be like PICO-8's fixed 16:16
 function fix_float(x)
   return math.floor(x * 65536) / 65536
@@ -1327,7 +1380,7 @@ function draw_tool()
   end
 
   -- draw a flashing overlay over the selected polygons
-  for _, poly in pairs(selectedPolygons) do
+  for _, poly in pairs(selectedShapes) do
     draw_shape(poly, selectionFlash:get_color())
   end
 
@@ -1410,7 +1463,7 @@ function draw_status()
   if #drawingPoints > 0 then
     selectedPolys = {{points = drawingPoints, color = cursor.color}}
   else
-    selectedPolys = selectedPolygons
+    selectedPolys = selectedShapes
   end
 
   if selectedPolys then
@@ -1652,7 +1705,7 @@ function undo()
     cursor.tool = state.cursorTool
 
     -- clear selections because they point to non-existant objects now
-    set_selected_polygons({})
+    set_selected_shapes({})
     set_selected_points({})
 
     -- re-render all polygons

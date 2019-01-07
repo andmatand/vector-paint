@@ -77,9 +77,9 @@ directory.
     point(s)/shape(s)
 
 #### Other Global Keys
-* Ctrl + S: Save
-* Ctrl + N: New Painting (clears all shapes, is undo-able)
-* Ctrl + Q: Quit
+* Ctrl/Command + S: **S**ave
+* Ctrl/Command + N: **N**ew Painting (clears all shapes, is undo-able)
+* Ctrl/Command + Q: **Q**uit
 * F11: Toggle fullscreen/windowed mode
 * 1/2: Select the next/previous color in the palette
 * \[: Move the selected shape(s) down in the layer ordering
@@ -107,11 +107,17 @@ directory.
 * Action Button: Place a point under the cursor
 * Enter or Right-Click: Finalize drawing
 
-#### "Select Polygon"/"Select Point" Tool
+#### "Select Shape"/"Select Point" Tool
 * Action Button: Select the polygon under the cursor
 * Tab: Select next shape/point
 * Shift Tab: Select previous shape/point
 * Delete or Backspace: Delete whatever is selected
+##### Operation when any shapes are selected
+* Ctrl/Command + C: Copy selected shape(s)
+* Ctrl/Command + V: Paste shape(s)
+  * The pasted shapes are positioned so that the top-left point is under the
+    cursor (or at the top-left corner of the canvas if the cursor is not on the
+    canvas)
 ##### Operation when exactly two points from the same polygon are selected
 * i: Insert a point at the midpoint between the two selected points
 
