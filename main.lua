@@ -136,6 +136,28 @@ function get_painting_data()
   return hex
 end
 
+function load_painting(filename)
+  print('loading painting from "' .. filename .. '"')
+
+  local data = love.filesystem.read(filename)
+  if data then
+    load_painting_data(data)
+    set_current_filename(filename)
+  end
+end
+
+function set_current_filename(filename)
+  currentFilename = filename
+
+  -- remove all but the filename
+  currentFilename = currentFilename:match("([^/]+)$")
+end
+
+function load_painting_data(data)
+  -- parse and apply the painting data
+  parse_painting_data(data)
+end
+
 function save_painting(filename)
   local data = get_painting_data()
 
@@ -464,18 +486,15 @@ function rtrim(s)
 end
 
 function love.filedropped(file)
+  print('loading painting from dropped file "' .. file:getFilename() .. '"')
+
   file:open('r')
   local data = file:read()
   file:close()
 
   if data then
-    currentFilename = file:getFilename()
-
-    -- remove all but the filename
-    currentFilename = currentFilename:match("([^/]+)$")
-
-    -- parse and apply the painting data
-    parse_painting_data(data)
+    load_painting_data(data)
+    set_current_filename(file:getFilename())
   end
 end
 
@@ -1402,13 +1421,19 @@ function draw_status()
         y = y + lineh
       end
 
-      love.graphics.print('  points:', x, y)
+      love.graphics.print('  points: ' .. #selectedPolys[1].points, x, y)
+      y = y + lineh
+      local x2, y2 = x, y
       for i, point in pairs(selectedPolys[1].points) do
-        y = y + lineh
+        local _, graphicsHeight = love.graphics.getDimensions()
+        if y2 > graphicsHeight - (lineh * 2) then
+          y2 = y
+          x2 = x2 + 125
+        end
         love.graphics.print('    ' .. i .. ': ' .. point_to_string(point),
-          x, y)
+          x2, y2)
+        y2 = y2 + lineh
       end
-
     elseif #selectedPolys > 1 then
       love.graphics.print(
         'selected polygons: ' .. #selectedPolys, x, y)
