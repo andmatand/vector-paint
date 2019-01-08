@@ -3,6 +3,24 @@ local bit = require('bit')
 local picolove = require('lib.picolove')
 require('class.colorflash')
 
+-- define global constants
+TOOLS = {
+  BG_IMAGE = 1,
+  CHANGE_COLOR = 2,
+  DRAW = 3,
+  MOVE = 4,
+  SELECT_POINT = 5,
+  SELECT_SHAPE = 6,
+}
+TOOL_NAMES = {
+  [TOOLS.BG_IMAGE] = 'adjust backgroud image',
+  [TOOLS.CHANGE_COLOR] = 'change color',
+  [TOOLS.DRAW] = 'draw',
+  [TOOLS.MOVE] = 'move',
+  [TOOLS.SELECT_POINT] = 'select point(s)',
+  [TOOLS.SELECT_SHAPE] = 'select shape(s)',
+}
+
 function love.load(arg)
   CANVAS_W = 128
   CANVAS_H = 128
@@ -58,12 +76,19 @@ function love.load(arg)
   -- create a canvas for the tools overlay
   toolsCanvas = love.graphics.newCanvas(CANVAS_W, CANVAS_H)
 
+  canvasOpacity = 1
+  bg = {
+    image = nil,
+    offset = {x = 0, y = 0},
+    scale = 1,
+  }
+
   cursor = {
     x = math.floor(CANVAS_W / 2),
     y = math.floor(CANVAS_H / 2),
     vx = 0,
     vy = 0,
-    tool = 'draw',
+    tool = TOOLS.DRAW,
     color = 9,
     isVisible = true
   }
@@ -281,7 +306,7 @@ function update_cursor()
   if not mouseOnlyMode then
     cursor.isVisible = true
 
-    if not cursor.fineMode and cursor.tool ~= 'move' then
+    if not cursor.fineMode and cursor.tool ~= TOOLS.MOVE then
       if love.keyboard.isDown('left') then
         cursor.vx = cursor.vx - delta
       end
@@ -321,13 +346,13 @@ function update_cursor()
   cursor.hoveredPoint = nil
 
   if cursor.isVisible then
-    if cursor.tool == 'select shape' then
+    if cursor.tool == TOOLS.SELECT_SHAPE then
       -- find the top polygon under the cursor
       local topPoly = find_top_poly(cursor)
       if topPoly then
         cursor.hoveredPolygon = topPoly
       end
-    elseif cursor.tool == 'select point' then
+    elseif cursor.tool == TOOLS.SELECT_POINT then
       -- find the top point under the cursor
       local point, poly = find_nearest_point(cursor)
       if poly then
@@ -545,16 +570,39 @@ function ctrl_is_down()
   return love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') 
 end
 
+function get_file_extension(filename)
+  return filename:match("^.+(%..+)$")
+end
+
 function love.filedropped(file)
-  print('loading painting from dropped file "' .. file:getFilename() .. '"')
+  local filename = file:getFilename()
+  print('received dropped file "' .. filename .. '"')
+
+  local ext = get_file_extension(filename)
+  if ext then
+    ext = string.sub(ext, 2, #ext)
+    print('extension: ' .. ext)
+  end
 
   file:open('r')
   local data = file:read()
   file:close()
 
-  if data then
-    load_painting_data(data)
-    set_current_filename(file:getFilename())
+  if ext == 'jpg' or ext == 'jpeg' or ext == 'png' then
+    print('loading dropped file as background image')
+    save_undo_state()
+    bg.image = love.graphics.newImage(
+      love.image.newImageData(
+        love.filesystem.newFileData(data, filename)
+      )
+    )
+    canvasOpacity = 0.5
+  else
+    print('loading dropped file as painting')
+    if data then
+      load_painting_data(data)
+      set_current_filename(file:getFilename())
+    end
   end
 end
 
@@ -624,18 +672,20 @@ function love.keypressed(key)
   elseif not shiftIsDown then
     -- switch tools
     if key == 'd' then
-      cursor.tool = 'draw'
+      cursor.tool = TOOLS.DRAW
       set_selected_shapes({})
       set_selected_points({})
     elseif key == 's' then
-      cursor.tool = 'select shape'
+      cursor.tool = TOOLS.SELECT_SHAPE
     elseif key == 'p' then
-      cursor.tool = 'select point'
+      cursor.tool = TOOLS.SELECT_POINT
     elseif key == 'm' then
-      cursor.tool = 'move'
+      cursor.tool = TOOLS.MOVE
     elseif key == 'c' then
-      cursor.tool = 'change color'
+      cursor.tool = TOOLS.CHANGE_COLOR
       set_color(cursor.color)
+    elseif key == 'b' then
+      cursor.tool = TOOLS.BG_IMAGE
     end
 
     if key == 'k' then
@@ -655,6 +705,36 @@ function love.keypressed(key)
     end
   end
 
+  if bg.image then
+    -- control background image opacity (actually shape canvas opacity)
+    local oldCanvasOpacity = canvasOpacity
+    if key == '<' or key == ',' then
+      canvasOpacity = canvasOpacity + .1
+    elseif key == '>' or key == '.' then
+      canvasOpacity = canvasOpacity - .1
+    end
+    if canvasOpacity ~= oldCanvasOpacity then
+      canvasOpacity = mid(0, canvasOpacity, 1)
+      print('set canvas opacity to ' .. canvasOpacity)
+    end
+
+    -- control background image scale
+    local oldScale = bg.scale
+    local delta = ctrlIsDown and .01 or .1
+    if key == '0' then
+      bg.scale = 1
+    elseif key == '-' or key == '_' then
+      bg.scale = bg.scale - delta
+    elseif key == '+' or key == '=' then
+      bg.scale = bg.scale + delta
+    end
+    if bg.scale ~= oldScale then
+      print('set background image scale to ' .. bg.scale)
+    end
+  else
+    canvasOpacity = 1
+  end
+
   -- toggle fine-movement mode for the keyboard-cursor
   if key == 'k' and shiftIsDown then
     if mouseOnlyMode then
@@ -671,28 +751,8 @@ function love.keypressed(key)
     end
   end
 
-  if cursor.tool == 'move' or mouseOnlyMode then
-    if key == 'left' then
-      move_selected_points(-1, 0)
-    elseif key == 'right' then
-      move_selected_points(1, 0)
-    elseif key == 'up' then
-      move_selected_points(0, -1)
-    elseif key == 'down' then
-      move_selected_points(0, 1)
-    end
-  else
-    if cursor.fineMode and not mouseOnlyMode then
-      if key == 'left' then
-        cursor.x = cursor.x - 1
-      elseif key == 'right' then
-        cursor.x = cursor.x + 1
-      elseif key == 'up' then
-        cursor.y = cursor.y - 1
-      elseif key == 'down' then
-        cursor.y = cursor.y + 1
-      end
-    end
+  if key == 'left' or key == 'right' or key == 'up' or key == 'down' then
+    push_direction(key)
   end
 
   if key == 'f11' then
@@ -735,8 +795,8 @@ function love.keypressed(key)
   end
 
   if key == 'tab' then
-    if cursor.tool == 'select shape' or
-       (cursor.tool ~= 'select point' and #selectedShapes > 0) then
+    if cursor.tool == TOOLS.SELECT_SHAPE or
+       (cursor.tool ~= TOOLS.SELECT_POINT and #selectedShapes > 0) then
       if #selectedShapes == 0 then
         if #selectedPoints == 1 then
           local poly = selectedPoints[1].poly
@@ -765,8 +825,8 @@ function love.keypressed(key)
       end
     end
 
-    if cursor.tool == 'select point' or
-       (cursor.tool ~= 'select shape' and #selectedPoints > 0) then
+    if cursor.tool == TOOLS.SELECT_POINT or
+       (cursor.tool ~= TOOLS.SELECT_SHAPE and #selectedPoints > 0) then
       if #selectedPoints == 0 and #selectedShapes == 1 then
         local sp = {
           point = selectedShapes[1].points[1],
@@ -828,6 +888,10 @@ function love.keypressed(key)
       render_polygons()
     end
   end
+end
+
+function mid(min, n, max)
+  return math.min(math.max(min, n), max)
 end
 
 function insert_point()
@@ -950,6 +1014,43 @@ function pull_polygon_forward(poly)
   end
 end
 
+function push_direction(key)
+  if cursor.tool == TOOLS.BG_IMAGE then
+    save_undo_state()
+    if key == 'left' then
+      bg.offset.x = bg.offset.x - 1
+    elseif key == 'right' then
+      bg.offset.x = bg.offset.x + 1
+    elseif key == 'up' then
+      bg.offset.y = bg.offset.y - 1
+    elseif key == 'down' then
+      bg.offset.y = bg.offset.y + 1
+    end
+  elseif cursor.tool == TOOLS.MOVE or mouseOnlyMode then
+    if key == 'left' then
+      move_selected_points(-1, 0)
+    elseif key == 'right' then
+      move_selected_points(1, 0)
+    elseif key == 'up' then
+      move_selected_points(0, -1)
+    elseif key == 'down' then
+      move_selected_points(0, 1)
+    end
+  else
+    if cursor.fineMode and not mouseOnlyMode then
+      if key == 'left' then
+        cursor.x = cursor.x - 1
+      elseif key == 'right' then
+        cursor.x = cursor.x + 1
+      elseif key == 'up' then
+        cursor.y = cursor.y - 1
+      elseif key == 'down' then
+        cursor.y = cursor.y + 1
+      end
+    end
+  end
+end
+
 function push_primary_button()
   if not cursor.isVisible then
     return
@@ -958,9 +1059,9 @@ function push_primary_button()
   local shiftIsDown = (love.keyboard.isDown('lshift') or
     love.keyboard.isDown('rshift'))
 
-  if cursor.tool == 'draw' then
+  if cursor.tool == TOOLS.DRAW then
     draw_point()
-  elseif cursor.tool == 'select shape' then
+  elseif cursor.tool == TOOLS.SELECT_SHAPE then
     if cursor.hoveredPolygon then
       if shiftIsDown then
         -- look for this shape in the selectedShapes table
@@ -979,7 +1080,7 @@ function push_primary_button()
     elseif not shiftIsDown then
       set_selected_shapes({})
     end
-  elseif cursor.tool == 'select point' then
+  elseif cursor.tool == TOOLS.SELECT_POINT then
     if cursor.hoveredPoint then
       if shiftIsDown then
         -- look for this point in the selectedPoints table
@@ -1011,7 +1112,7 @@ function push_secondary_button()
     return
   end
 
-  if cursor.tool == 'draw' then
+  if cursor.tool == TOOLS.DRAW then
     finalize_drawing_points()
   end
 end
@@ -1116,7 +1217,7 @@ end
 function set_color(color)
   cursor.color = color
 
-  if cursor.tool == 'change color' then
+  if cursor.tool == TOOLS.CHANGE_COLOR then
     save_undo_state()
 
     local targetPolys = get_target_polygons()
@@ -1399,10 +1500,12 @@ function draw_canvases()
 
   love.graphics.scale(canvasScale, canvasScale)
 
-  love.graphics.setColor(1, 1, 1)
+  love.graphics.setColor(1, 1, 1, canvasOpacity)
 
   -- draw the polygon canvas
   love.graphics.draw(canvas, canvasPos.x, canvasPos.y)
+
+  love.graphics.setColor(1, 1, 1, 1)
 
   -- draw the tools cavnas on top of the polygon canvas
   love.graphics.draw(toolsCanvas, canvasPos.x, canvasPos.y)
@@ -1436,7 +1539,7 @@ function draw_status()
   end
 
   y = y + lineh
-  love.graphics.print('current tool: ' .. cursor.tool, x, y)
+  love.graphics.print('current tool: ' .. TOOL_NAMES[cursor.tool], x, y)
 
   if not mouseOnlyMode then
     y = y + lineh
@@ -1571,7 +1674,7 @@ function shape_type(shape)
 end
 
 function draw_cursor()
-  if cursor.isVisible == false or cursor.tool == 'move' then
+  if cursor.isVisible == false or cursor.tool == TOOLS.MOVE then
     return
   end
 
@@ -1703,6 +1806,7 @@ function undo()
     drawingPoints = state.drawingPoints
     cursor.color = state.cursorColor
     cursor.tool = state.cursorTool
+    bg = state.bg
 
     -- clear selections because they point to non-existant objects now
     set_selected_shapes({})
@@ -1725,6 +1829,7 @@ function save_undo_state()
   state.drawingPoints = copy_table(drawingPoints)
   state.cursorColor = cursor.color
   state.cursorTool = cursor.tool
+  state.bg = copy_table(bg)
 
   table.insert(undoHistory, state)
 end
@@ -1753,6 +1858,28 @@ function toggle_fullscreen()
   find_best_canvas_scale()
 end
 
+function draw_background_image()
+  love.graphics.setColor(1, 1, 1)
+
+  local imageSize = math.max(bg.image:getWidth(), bg.image:getHeight())
+  local canvasSize = math.max(CANVAS_W, CANVAS_H)
+  local baseScale = (canvasSize / imageSize) * canvasScale
+  local scale = baseScale * bg.scale
+
+  love.graphics.setScissor(
+    canvasPos.x * canvasScale,
+    canvasPos.y * canvasScale,
+    CANVAS_W * canvasScale,
+    CANVAS_H * canvasScale)
+
+  love.graphics.draw(bg.image,
+    (canvasPos.x * canvasScale) + bg.offset.x,
+    (canvasPos.y * canvasScale) + bg.offset.y,
+    0, scale, scale)
+
+  love.graphics.setScissor()
+end
+
 function love.update()
   update_cursor()
   update_palette_display()
@@ -1774,6 +1901,10 @@ function love.draw()
 
   -- draw the current tool on the tools canvas
   draw_tool()
+
+  if bg.image then
+    draw_background_image()
+  end
 
   -- draw the canvases
   draw_canvases()
