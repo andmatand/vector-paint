@@ -89,7 +89,7 @@ directory.
 * u: **U**ndo
 * h: Toggle **h**ighlight of currently selected shape
 * <: decrease opacity of background image
-* >: increase opacity of background image
+* \>: increase opacity of background image
 * -: decrease scale of background image (hold Ctrl for greater precision)
 * +: increase scale of background image (hold Ctrl for greater precision)
 * 0: reset background image scale to initial "best fit"
