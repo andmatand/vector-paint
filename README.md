@@ -73,8 +73,9 @@ directory.
 * c: Replace **C**olor of selected shape(s)
 * m: **M**ove tool (use cursor keys to move the selected point(s)/shape(s))
   * Note: When not in Keyboard-Friendly Mode, you don't need to use this mode;
-    the arrow keys can be used at any time to move the selected
+    the arrow keys can be used at (almost) any time to move the selected
     point(s)/shape(s)
+* b: Adjust **B**ackground Image
 
 #### Other Global Keys
 * Ctrl/Command + S: **S**ave
@@ -87,6 +88,11 @@ directory.
 * F5: Force re-render the canvas (probably not necesary unless there's a bug)
 * u: **U**ndo
 * h: Toggle **h**ighlight of currently selected shape
+* <: decrease opacity of background image
+* >: increase opacity of background image
+* -: decrease scale of background image (hold Ctrl for greater precision)
+* +: increase scale of background image (hold Ctrl for greater precision)
+* 0: reset background image scale to initial "best fit"
 * Esc: Abort current drawing operation and deselect everything
 * k: Toggle **K**eyboard-Friendly Mode
   * Keyboard-Friendly Mode allows using the keyboard's arrow keys to move the
@@ -107,7 +113,7 @@ directory.
 * Action Button: Place a point under the cursor
 * Enter or Right-Click: Finalize drawing
 
-#### "Select Shape"/"Select Point" Tool
+#### "Select Shape(s)"/"Select Point(s)" Tool
 * Action Button: Select the polygon under the cursor
 * Tab: Select next shape/point
 * Shift Tab: Select previous shape/point
@@ -120,6 +126,9 @@ directory.
     canvas)
 ##### Operation when exactly two points from the same polygon are selected
 * i: Insert a point at the midpoint between the two selected points
+
+#### "Adjust Background Image" Tool
+* Up/Down/Left/Right: Move background image
 
 #### Saving
 Since this is a LÖVE program, it is only allowed to write to a folder inside a
@@ -135,3 +144,7 @@ using your OS's file manager UI.
 Alternately, you may run the program with a command-line argument which is
 interpreted as a filename to load. The file must be inside the save directory,
 and the path must be relative to that folder.
+
+#### Importing a Background Image
+To import a background image to use as a guide for your drawing, drag and drop
+the image file onto the window using your OS's file manager UI.
