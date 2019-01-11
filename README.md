@@ -124,8 +124,8 @@ directory.
 
 #### "Adjust Background Image" Tool
 * Up/Down/Left/Right: Move background image
-* <: decrease opacity of background image
-* \>: increase opacity of background image
+* <: decrease opacity of background image (works globally)
+* \>: increase opacity of background image (works globally)
 * -: decrease scale of background image (hold Ctrl for greater precision)
 * +: increase scale of background image (hold Ctrl for greater precision)
 * 0: reset background image scale to initial "best fit"

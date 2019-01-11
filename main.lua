@@ -705,7 +705,7 @@ function love.keypressed(key)
     end
   end
 
-  if cursor.tool == TOOLS.BG_IMAGE and bg.image then
+  if bg.image then
     -- control background image opacity (actually shape canvas opacity)
     local oldCanvasOpacity = canvasOpacity
     if key == '<' or key == ',' then
@@ -719,7 +719,9 @@ function love.keypressed(key)
       canvasOpacity = mid(0, canvasOpacity, 1)
       print('set canvas opacity to ' .. canvasOpacity)
     end
+  end
 
+  if cursor.tool == TOOLS.BG_IMAGE and bg.image then
     -- control background image scale
     local oldScale = bg.scale
     local delta = ctrlIsDown and .01 or .1
