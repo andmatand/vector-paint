@@ -306,7 +306,8 @@ function update_cursor()
   if not mouseOnlyMode then
     cursor.isVisible = true
 
-    if not cursor.fineMode and cursor.tool ~= TOOLS.MOVE then
+    if not cursor.fineMode and cursor.tool ~= TOOLS.MOVE and
+       cursor.tool ~= TOOLS.BG_IMAGE then
       if love.keyboard.isDown('left') then
         cursor.vx = cursor.vx - delta
       end
@@ -581,7 +582,6 @@ function love.filedropped(file)
   local ext = get_file_extension(filename)
   if ext then
     ext = string.sub(ext, 2, #ext)
-    print('extension: ' .. ext)
   end
 
   file:open('r')
@@ -705,7 +705,7 @@ function love.keypressed(key)
     end
   end
 
-  if bg.image then
+  if cursor.tool == TOOLS.BG_IMAGE and bg.image then
     -- control background image opacity (actually shape canvas opacity)
     local oldCanvasOpacity = canvasOpacity
     if key == '<' or key == ',' then
@@ -736,8 +736,6 @@ function love.keypressed(key)
     if bg.scale ~= oldScale then
       print('set background image scale to ' .. bg.scale)
     end
-  else
-    canvasOpacity = 1
   end
 
   -- toggle fine-movement mode for the keyboard-cursor
@@ -1522,6 +1520,10 @@ function point_to_string(point)
   return '(' .. point.x .. ', ' .. point.y .. ')'
 end
 
+function round1(n)
+  return math.floor(n * 10) / 10
+end
+
 function draw_status()
   love.graphics.setColor(1, 1, 1)
   local x = (CANVAS_W * canvasScale) + (canvasMargin * 2)
@@ -1554,6 +1556,15 @@ function draw_status()
     else
       love.graphics.print('keyboard-friendly mode enabled', x, y)
     end
+  end
+
+  if cursor.tool == TOOLS.BG_IMAGE and bg.image then
+    y = y + lineh
+    love.graphics.print(
+      'position: ' ..  point_to_string(bg.offset) .. '  ' ..
+      'opacity: ' .. round1(1 - canvasOpacity) .. '  ' ..
+      'scale: ' .. bg.scale,
+      x, y)
   end
 
   if not selectionFlash:is_enabled() then
@@ -1888,6 +1899,10 @@ function draw_background_image()
 end
 
 function love.update()
+  if not bg.image then
+    canvasOpacity = 1
+  end
+
   update_cursor()
   update_palette_display()
 end

@@ -88,11 +88,6 @@ directory.
 * F5: Force re-render the canvas (probably not necesary unless there's a bug)
 * u: **U**ndo
 * h: Toggle **h**ighlight of currently selected shape
-* <: decrease opacity of background image
-* \>: increase opacity of background image
-* -: decrease scale of background image (hold Ctrl for greater precision)
-* +: increase scale of background image (hold Ctrl for greater precision)
-* 0: reset background image scale to initial "best fit"
 * Esc: Abort current drawing operation and deselect everything
 * k: Toggle **K**eyboard-Friendly Mode
   * Keyboard-Friendly Mode allows using the keyboard's arrow keys to move the
@@ -129,6 +124,11 @@ directory.
 
 #### "Adjust Background Image" Tool
 * Up/Down/Left/Right: Move background image
+* <: decrease opacity of background image
+* \>: increase opacity of background image
+* -: decrease scale of background image (hold Ctrl for greater precision)
+* +: increase scale of background image (hold Ctrl for greater precision)
+* 0: reset background image scale to initial "best fit"
 
 #### Saving
 Since this is a LÖVE program, it is only allowed to write to a folder inside a
