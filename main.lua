@@ -1530,10 +1530,10 @@ function draw_status()
   local y = canvasMargin
   local lineh = love.graphics.getFont():getHeight()
 
-  love.graphics.print('total shapes: ' .. #polygons, x, y)
-
+  local byteCount = string.len(get_painting_data()) / 2
+  love.graphics.print(#polygons .. ' shapes  ' ..
+    '(' .. byteCount .. ' bytes)', x, y)
   love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 215, y)
-
 
   y = y + lineh
   if cursor.isVisible then
