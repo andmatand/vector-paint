@@ -709,10 +709,8 @@ function love.keypressed(key)
     -- control background image opacity (actually shape canvas opacity)
     local oldCanvasOpacity = canvasOpacity
     if key == '<' or key == ',' then
-      save_undo_state()
       canvasOpacity = canvasOpacity + .1
     elseif key == '>' or key == '.' then
-      save_undo_state()
       canvasOpacity = canvasOpacity - .1
     end
     if canvasOpacity ~= oldCanvasOpacity then
@@ -1825,7 +1823,6 @@ function undo()
     cursor.color = state.cursorColor
     cursor.tool = state.cursorTool
     bg = state.bg
-    canvasOpacity = state.canvasOpacity
 
     -- clear selections because they point to non-existant objects now
     set_selected_shapes({})
@@ -1849,7 +1846,6 @@ function save_undo_state()
   state.cursorColor = cursor.color
   state.cursorTool = cursor.tool
   state.bg = copy_table(bg)
-  state.canvasOpacity = canvasOpacity
 
   table.insert(undoHistory, state)
 end
