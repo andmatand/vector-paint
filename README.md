@@ -86,7 +86,7 @@ directory.
 * \[: Move the selected shape(s) down in the layer ordering
 * \]: Move the selected shape(s) up in the layer ordering
 * F5: Force re-render the canvas (probably not necesary unless there's a bug)
-* u: **U**ndo
+* u: **U**ndo (use Shift + U to redo)
 * h: Toggle **h**ighlight of currently selected shape
 * Esc: Abort current drawing operation and deselect everything
 * k: Toggle **K**eyboard-Friendly Mode
@@ -113,12 +113,15 @@ directory.
 * Tab: Select next shape/point
 * Shift Tab: Select previous shape/point
 * Delete or Backspace: Delete whatever is selected
-##### Operation when any shapes are selected
+##### Operations when any shapes are selected
 * Ctrl/Command + C: Copy selected shape(s)
 * Ctrl/Command + V: Paste shape(s)
   * The pasted shapes are positioned so that the top-left point is under the
     cursor (or at the top-left corner of the canvas if the cursor is not on the
     canvas)
+###### Scaling (will result in shape distortion because of integer rounding)
+* -: scale down 
+* +: scale up
 ##### Operation when exactly two points from the same polygon are selected
 * i: Insert a point at the midpoint between the two selected points
 

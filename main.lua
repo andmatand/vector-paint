@@ -20,6 +20,7 @@ TOOL_NAMES = {
   [TOOLS.SELECT_POINT] = 'select point(s)',
   [TOOLS.SELECT_SHAPE] = 'select shape(s)',
 }
+MAX_UNDO = 500
 
 function love.load(arg)
   CANVAS_W = 128
@@ -132,6 +133,8 @@ function love.load(arg)
 
   polygons = {}
   undoHistory = {}
+  undoIndex = 1
+  redoStack = {}
   find_best_canvas_scale()
 
   -- If a command-line argument is given, treat it as a filename to load
@@ -236,7 +239,6 @@ function load_painting_data(data)
   polygons = {}
   selectedShapes = {}
   selectedPoints = {}
-  --undoHistory = {}
 
   local reader = create_painting_reader(data)
 
@@ -268,7 +270,11 @@ function load_painting_data(data)
   until reader:is_at_end()
 
   -- re-render all polygons
-  render_polygons()
+  set_dirty_flag()
+end
+
+function set_dirty_flag()
+  canvasIsDirty = true
 end
 
 function shallow_copy_table(t)
@@ -471,8 +477,7 @@ function move_selected_points(xDelta, yDelta)
         point.y = point.y + yDelta
       end
 
-      -- re-render all polygons
-      render_polygons()
+      set_dirty_flag()
     end
   end
 end
@@ -542,7 +547,37 @@ function paste(x, y)
 
   set_selected_shapes(newShapes)
   print('pasted ' .. #newShapes .. ' shapes')
-  render_polygons()
+  set_dirty_flag()
+end
+
+function find_center(points)
+  local sum = {x = 0, y = 0}
+
+  for _, p in pairs(points) do
+    sum.x = sum.x + p.x
+    sum.y = sum.y + p.y
+  end
+
+  return {
+    x = sum.x / #points,
+    y = sum.y / #points
+  }
+end
+
+function round(n)
+  return math.floor(n + 0.5)
+end
+
+function scale_shapes(shapes, scale)
+  for _, shape in pairs(shapes) do
+    local center = find_center(shape.points)
+    for _, p in pairs(shape.points) do
+      p.x = round((scale * (p.x - center.x)) + center.x)
+      p.y = round((scale * (p.y - center.y)) + center.y)
+    end
+  end
+
+  set_dirty_flag()
 end
 
 function love.textinput(t)
@@ -650,8 +685,7 @@ function love.keypressed(key)
       selectedShapes = {}
       selectedPoints = {}
 
-      -- re-render all polygons
-      render_polygons()
+      set_dirty_flag()
     elseif key == 's' then
       mode = 'save'
 
@@ -688,6 +722,17 @@ function love.keypressed(key)
       cursor.tool = TOOLS.BG_IMAGE
     end
 
+    if tool ~= TOOLS.BG_IMAGE and #selectedShapes > 0 then
+      local scaleDelta = .2
+      if key == '-' or key == '_' then
+        save_undo_state()
+        scale_shapes(selectedShapes, 1 - scaleDelta)
+      elseif key == '+' or key == '=' then
+        save_undo_state()
+        scale_shapes(selectedShapes, 1 + scaleDelta)
+      end
+    end
+
     if key == 'k' then
       set_mouse_only_mode(not mouseOnlyMode)
     end
@@ -702,6 +747,10 @@ function love.keypressed(key)
       undo()
     elseif key == 'h' then
       selectionFlash:set_enabled(not selectionFlash:is_enabled())
+    end
+  elseif shiftIsDown then
+    if key == 'u' then
+      redo()
     end
   end
 
@@ -774,7 +823,7 @@ function love.keypressed(key)
 
   if key == 'f5' then
     -- force re-render all polygons
-    render_polygons()
+    set_dirty_flag()
   end
 
   if key == '[' then
@@ -783,18 +832,14 @@ function love.keypressed(key)
     for i = 1, #polys do
       push_polygon_back(polys[i])
     end
-
-    -- re-render all polygons
-    render_polygons()
+    set_dirty_flag()
   elseif key == ']' then
     -- pull the selected polygons forward by one in the stack
     local polys = get_target_polygons()
     for i = 1, #polys do
       pull_polygon_forward(polys[i])
     end
-
-    -- re-render all polygons
-    render_polygons()
+    set_dirty_flag()
   end
 
   if key == 'tab' then
@@ -857,12 +902,9 @@ function love.keypressed(key)
   if key == 'delete' or key == 'backspace' then
     if #selectedShapes > 0 then
       save_undo_state()
-
       polygons = remove_values_from_table(selectedShapes, polygons)
       set_selected_shapes({})
-
-      -- re-render all polygons
-      render_polygons()
+      set_dirty_flag()
     end
 
     if #selectedPoints > 0 then
@@ -887,8 +929,7 @@ function love.keypressed(key)
         end
       end
 
-      -- re-render all polygons
-      render_polygons()
+      set_dirty_flag()
     end
   end
 end
@@ -1230,8 +1271,7 @@ function set_color(color)
       poly.color = color
     end
 
-    -- re-render all polygons
-    render_polygons()
+    set_dirty_flag()
   end
 end
 
@@ -1271,6 +1311,8 @@ function finalize_drawing_points()
     return
   end
 
+  save_undo_state()
+
   -- finalize the WIP polygon
   table.insert(polygons,
     {
@@ -1281,8 +1323,7 @@ function finalize_drawing_points()
   -- clear the WIP points
   drawingPoints = {}
 
-  -- re-render all polygons
-  render_polygons()
+  set_dirty_flag()
 end
 
 function love.resize()
@@ -1321,7 +1362,7 @@ function find_best_canvas_scale()
     y = canvasMargin / canvasScale
   }
 
-  render_polygons()
+  set_dirty_flag()
 end
 
 function find_bounds(points)
@@ -1812,34 +1853,57 @@ function draw_wip_poly()
   end
 end
 
+-- apply a saved undo state
+function apply_state(state)
+  polygons = state.polygons
+  drawingPoints = state.drawingPoints
+  cursor.color = state.cursorColor
+  cursor.tool = state.cursorTool
+  bg = state.bg
+end
+
 function undo()
-  -- pop the most recent saved state off the undoHistory
-  local state = table.remove(undoHistory)
+  if undoIndex == 1 then
+    print('no undo history remaining')
+    return
+  end
 
-  if state then
-    -- apply the saved state
-    polygons = state.polygons
-    drawingPoints = state.drawingPoints
-    cursor.color = state.cursorColor
-    cursor.tool = state.cursorTool
-    bg = state.bg
+  if not undoHistory[undoIndex] then
+    -- allow for redo
+    table.insert(undoHistory, get_state())
+  end
 
-    -- clear selections because they point to non-existant objects now
+  undoIndex = undoIndex - 1
+  local state = undoHistory[undoIndex]
+  apply_state(state)
+
+  -- clear selections because they point to non-existant objects now
+  set_selected_shapes({})
+  set_selected_points({})
+
+  set_dirty_flag()
+end
+
+function redo()
+  print(undoIndex)
+  print(#undoHistory)
+
+  if undoIndex < #undoHistory then
+    undoIndex = undoIndex + 1
+    local state = undoHistory[undoIndex]
+    print('loaded undo state ' .. undoIndex)
+
+    apply_state(state)
+
     set_selected_shapes({})
     set_selected_points({})
-
-    -- re-render all polygons
-    render_polygons()
+    set_dirty_flag()
   else
-    print('no undo history remaining')
+    print('no redo stack remaining')
   end
 end
 
-function save_undo_state()
-  if #undoHistory == MAX_UNDO then
-    table.remove(undoHistory, 1)
-  end
-
+function get_state()
   local state = {}
   state.polygons = copy_table(polygons)
   state.drawingPoints = copy_table(drawingPoints)
@@ -1847,7 +1911,24 @@ function save_undo_state()
   state.cursorTool = cursor.tool
   state.bg = copy_table(bg)
 
-  table.insert(undoHistory, state)
+  return state
+end
+
+function save_undo_state()
+  if #undoHistory == MAX_UNDO then
+    table.remove(undoHistory, 1)
+  else
+    -- clear later states
+    for i = undoIndex + 1, #undoHistory do
+      table.remove(undoHistory, i)
+    end
+  end
+
+  print('saving to undo slot ' .. undoIndex)
+  undoHistory[undoIndex] = get_state()
+
+  -- undoIndex points to the next undo slot which will be saved to
+  undoIndex = undoIndex + 1
 end
 
 function toggle_fullscreen()
@@ -1926,7 +2007,13 @@ function love.draw()
     draw_background_image()
   end
 
-  -- draw the canvases
+  if canvasIsDirty then
+    -- redraw all shapes onto the painting canvas
+    render_polygons()
+    canvasIsDirty = false
+  end
+
+  -- draw the canvases onto the screen
   draw_canvases()
 
   -- draw status stuff
