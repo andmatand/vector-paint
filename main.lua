@@ -1,6 +1,7 @@
 local utf8 = require('utf8')
 local bit = require('bit')
 local picolove = require('lib.picolove')
+--local inspect = require('lib.inspect')
 require('class.colorflash')
 
 -- define global constants
@@ -1314,11 +1315,14 @@ function finalize_drawing_points()
   save_undo_state()
 
   -- finalize the WIP polygon
-  table.insert(polygons,
-    {
-      points = drawingPoints,
-      color = cursor.color
-    })
+  table.insert(polygons, {
+    points = drawingPoints,
+    color = cursor.color
+  })
+
+  if #selectedShapes == 0 then
+    set_selected_shapes({polygons[#polygons]})
+  end
 
   -- clear the WIP points
   drawingPoints = {}
@@ -1620,8 +1624,10 @@ function draw_status()
   end
 
   local selectedPolys
+  local selectionLabel = 'selected shape:'
   if #drawingPoints > 0 then
     selectedPolys = {{points = drawingPoints, color = cursor.color}}
+    selectionLabel = 'drawing shape:'
   else
     selectedPolys = selectedShapes
   end
@@ -1629,7 +1635,7 @@ function draw_status()
   if selectedPolys then
     y = 300
     if #selectedPolys == 1 then
-      love.graphics.print('selected shape:', x, y)
+      love.graphics.print(selectionLabel, x, y)
       y = y + lineh
 
       local index = find_polygon_index(selectedPolys[1])
@@ -1648,7 +1654,8 @@ function draw_status()
         y = y + lineh
       end
 
-      love.graphics.print('  points: ' .. #selectedPolys[1].points, x, y)
+      love.graphics.print('  points: ' .. #selectedPolys[1].points ..
+        ' (' .. shape_type(selectedPolys[1]) .. ')', x, y)
       y = y + lineh
       local x2, y2 = x, y
       for i, point in pairs(selectedPolys[1].points) do
