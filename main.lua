@@ -22,6 +22,7 @@ TOOL_NAMES = {
   [TOOLS.SELECT_SHAPE] = 'select shape(s)',
 }
 MAX_UNDO = 500
+MAX_FILL_PATTERNS = 3
 
 function love.load(arg)
   CANVAS_W = 128
@@ -67,6 +68,12 @@ function love.load(arg)
 
   -- create a table to store positions of palette color boxes in the UI
   paletteBox = {}
+
+  fillPatterns = {
+    [1] = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
+    [2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    [3] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  }
 
   -- make sure we get ALL the pixels
   love.graphics.setDefaultFilter('nearest', 'nearest')
@@ -1473,6 +1480,9 @@ function fill_polygon(poly)
   -- find the bounds of the polygon
   local x1, x2, y1, y2 = find_bounds(poly.points)
 
+  -- debug
+  poly.patternIndex = 1
+
   for y = y2, y1, -1 do
     -- find intersecting nodes
     local xlist = find_intersections(poly.points, y)
@@ -1482,8 +1492,29 @@ function fill_polygon(poly)
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
 
-      picolove.line(x1, y, x2, y)
+      if poly.patternIndex > 0 then
+        for x = x1, x2 do
+          pset(x, y, fillPatterns[poly.patternIndex])
+        end
+      else
+        picolove.line(x1, y, x2, y)
+      end
     end
+  end
+end
+
+function get_pattern_bit(fillPattern, x, y)
+  x = x % 4
+  y = y % 4
+
+  local index = ((4 * y) + x) + 1
+  return fillPattern[index]
+end
+
+function pset(x, y, fillPattern)
+  local bit = get_pattern_bit(fillPattern, x, y)
+  if bit == 1 then
+    love.graphics.points(x + 0.5, y + 0.5)
   end
 end
 

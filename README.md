@@ -33,15 +33,24 @@ string into a PICO-8 program.  See the file sample-use.p8 for PICO-8 code which
 parses and displays one of these strings.
 
 ## What are the details of the save format?
-The painting is a series of shapes.  Each shape's data is laid out in the
-following manner:
+The "painting" is a series of shapes, optionally followed by 1-3 fill patterns.
 
-| #  of bytes | description  |
-|-------------|--------------|
-|           1 | point count  |
-|           1 | color        |
+### Shape Data
+Each shape's data is laid out in the following manner:
 
-Then for each point, this pair of bytes repeats:
+| #  of bytes | description                                                   |
+|-------------|---------------------------------------------------------------|
+|           1 | point count (max: 64) and fill-pattern index                  |
+|           1 | color (first four bits are background color for fill-pattern) |
+
+#### First Byte Layout
+  * The first two bits (mask `0b11000000`) are a fill pattern index.  A value
+    of 0 means no the shape does not use a fill pattern. Values 1-3 refer to
+    the index of a fill-pattern (stored at the end of the painting data)
+  * The remaining six bits (mask `0b00111111`) are the shape's point-count
+    (therefore there is a maximum of of 64 points in a shape)
+
+Then for each point, the following pair of bytes repeats:
 
 | #  of bytes | description  | note                             |
 |-------------|--------------|----------------------------------|
@@ -55,6 +64,27 @@ y-coorindate as -1.  The reason we want to be able to position things at -1 on
 the y-axis is that, because of the way the scanline rasterization algorithm
 here works, in order to draw a polygon which appears to touch the very top of
 the canvas, we actually have to position the top point(s) at -1 on the y-axis.
+
+### Fill-Pattern Data (Optional; 0-7 bytes)
+If the painting uses any fill-patterns, they come at the end, after the shape
+data.  There is a maximum of 3 fill-patterns; the count is determined by
+observing the highest index to which any shapes' fill-pattern indices refer. If
+no shapes refer to any fill-pattern index, then this section is not written.
+
+Each fill-pattern is stored like this:
+
+| #  of bytes  | description       | note                                 |
+|--------------|-------------------|--------------------------------------|
+|            2 | fill-pattern      | follows normal PICO-8 `fillp` format |
+
+Last is the transparency bits for the fill-patterns; these are all stored in a
+single byte to save space:
+
+| bit mask     | description                         |
+|--------------|-------------------------------------|
+| `0b10000000` | transparency bit for fill-pattern 1 |
+| `0b01000000` | transparency bit for fill-pattern 2 |
+| `0b00100000` | transparency bit for fill-pattern 3 |
 
 ## How do I use it?
 Read the lovely sections below and they will hopefully answer your every
