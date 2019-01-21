@@ -190,6 +190,8 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
     end
   end
 
+  print('used :' .. #usedFillPatterns)
+
   -- Sort the used patterns by current index so the order is deterministic
   table.sort(usedFillPatterns, function (a, b)
     return a.oldIndex < b.oldIndex
@@ -198,7 +200,7 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
   local patternIndexTranslationTable = {}
   if #usedFillPatterns > 0 then
     -- create a lookup table
-    for i, pattern in ipairs(usedFillPatterns) do
+    for i, pattern in pairs(usedFillPatterns) do
       patternIndexTranslationTable[pattern.oldIndex] = i
     end
 
@@ -206,7 +208,6 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
     for _, shape in pairs(shapes) do
       shape.patternIndex = patternIndexTranslationTable[shape.patternIndex]
     end
-
   end
 
   return usedFillPatterns
@@ -231,6 +232,10 @@ function get_painting_data()
     table.insert(bytes, byte1)
 
     -- add the shape's color
+    if shape.patternIndex == 0 then
+      -- bgColor is not used, so write zeros (which is more compressable)
+      shape.bgColor = 0
+    end
     table.insert(bytes, bit.bor(bit.lshift(shape.bgColor, 4), shape.color))
 
     -- add each point
@@ -241,24 +246,28 @@ function get_painting_data()
     end
   end
 
-  -- add used fill-patterns
-  for _, fillPattern in ipairs(usedFillPatterns) do
-    local byte1 = bit.rshift(
-      bit.band(fillPattern.pattern, 0b1111111100000000),
-      8)
-    local byte2 = bit.band(fillPattern.pattern, 0b0000000011111111)
+  if #usedFillPatterns > 0 then
+    -- add used fill-patterns
+    for _, fillPattern in ipairs(usedFillPatterns) do
+      local patternBytes = get_pattern_bytes(fillPattern.pattern)
+      local byte1 = bit.rshift(
+        bit.band(patternBytes, 0b1111111100000000),
+        8)
+      local byte2 = bit.band(patternBytes, 0b0000000011111111)
 
-    table.insert(bytes, byte1)
-    table.insert(bytes, byte2)
-  end
-
-  -- add transparency bits for fill-patterns
-  local transparencyByte = 0
-  for i, fillPattern in ipairs(usedFillPatterns) do
-    if fillPattern.isTransparent then
-      local newBit = bit.rshift(0b10000000, i - 1)
-      transparencyByte = bit.band(transparencyByte, newBit)
+      table.insert(bytes, byte1)
+      table.insert(bytes, byte2)
     end
+
+    -- add transparency bits for fill-patterns
+    local transparencyByte = 0
+    for i, fillPattern in ipairs(usedFillPatterns) do
+      if fillPattern.isTransparent then
+        local newBit = bit.rshift(0b10000000, i - 1)
+        transparencyByte = bit.band(transparencyByte, newBit)
+      end
+    end
+    table.insert(bytes, transparencyByte)
   end
 
   return convert_to_hex(bytes)
@@ -270,6 +279,17 @@ function convert_to_hex(bytes)
     hex = hex .. bit.tohex(bytes[i], 2)
   end
   return hex
+end
+
+function get_pattern_bytes(pattern)
+  local bytes = 0
+  for i, pbit in ipairs(pattern) do
+    if pbit == 1 then
+      local mask = bit.rshift(0b1000000000000000, i - 1)
+      bytes = bit.bor(bytes, mask)
+    end
+  end
+  return bytes
 end
 
 function load_painting(filename)
