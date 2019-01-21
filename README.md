@@ -45,8 +45,8 @@ Each shape's data is laid out in the following manner:
 
 #### First Byte Layout
   * The first two bits (mask `0b11000000`) are a fill pattern index.  A value
-    of 0 means no the shape does not use a fill pattern. Values 1-3 refer to
-    the index of a fill-pattern (stored at the end of the painting data)
+    of 0 means the shape does not use a fill pattern. Values 1-3 refer to the
+    index of a fill-pattern (stored at the end of the painting data)
   * The remaining six bits (mask `0b00111111`) are the shape's point-count
     (therefore there is a maximum of of 64 points in a shape)
 
