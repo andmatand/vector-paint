@@ -27,6 +27,11 @@ MAX_FILL_PATTERNS = 3
 function love.load(arg)
   CANVAS_W = 128
   CANVAS_H = 128
+  PATTERN_SWATCH_CANVAS_W = 10
+  PATTERN_SWATCH_CANVAS_H = 38
+  PATTERN_SWATCH_W = 8
+  PATTERN_SWATCH_H = 8
+  PATTERN_SWATCH_ROW_H = 10
   love.graphics.setFont(love.graphics.newFont(14))
 
   POINT_MIN_X = 0
@@ -70,9 +75,18 @@ function love.load(arg)
   paletteBox = {}
 
   fillPatterns = {
-    [1] = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
-    [2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    [3] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    [1] = {
+      pattern = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
+      transparent = true
+    },
+    [2] = {
+      pattern = {1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
+      transparent = false
+    },
+    [3] = {
+      pattern = {0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0},
+      transparent = false
+    }
   }
 
   -- make sure we get ALL the pixels
@@ -84,6 +98,11 @@ function love.load(arg)
 
   -- create a canvas for the tools overlay
   toolsCanvas = love.graphics.newCanvas(CANVAS_W, CANVAS_H)
+
+  -- create a canvas for the fill-pattern swatches
+  fillPatternSwatchCanvas = love.graphics.newCanvas(
+    PATTERN_SWATCH_CANVAS_W,
+    PATTERN_SWATCH_CANVAS_H)
 
   canvasOpacity = 1
   bg = {
@@ -98,7 +117,9 @@ function love.load(arg)
     vx = 0,
     vy = 0,
     tool = TOOLS.DRAW,
-    color = 9,
+    color = 14,
+    bgColor = 10,
+    patternIndex = 0,
     isVisible = true
   }
 
@@ -256,8 +277,10 @@ function load_painting_data(data)
       points = {}
     }
 
-    -- read the point count
-    local pointCount = reader:get_next_byte()
+    -- read the fill-pattern index and point count
+    local byte1 = reader:get_next_byte()
+    polygon.patternIndex = bit.rshift(bit.band(byte1, 0b11000000), 6)
+    local pointCount = bit.band(byte1, 0b00111111)
 
     -- read the color
     polygon.color = reader:get_next_byte()
@@ -829,6 +852,26 @@ function love.keypressed(key)
     end
   end
 
+  if key == 'q' then
+    if cursor.bgColor > 0 then
+      set_bg_color(cursor.bgColor - 1)
+    end
+  elseif key == 'w' then
+    if cursor.bgColor < #palette then
+      set_bg_color(cursor.bgColor + 1)
+    end
+  end
+
+  if key == '3' then
+    if cursor.patternIndex > 0 then
+      set_fill_pattern(cursor.patternIndex - 1)
+    end
+  elseif key == '4' then
+    if cursor.patternIndex < MAX_FILL_PATTERNS then
+      set_fill_pattern(cursor.patternIndex + 1)
+    end
+  end
+
   if key == 'f5' then
     -- force re-render all polygons
     set_dirty_flag()
@@ -1266,6 +1309,10 @@ function get_target_polygons()
   return targetPolys
 end
 
+function set_bg_color(color)
+  cursor.bgColor = color
+end
+
 function set_color(color)
   cursor.color = color
 
@@ -1281,6 +1328,10 @@ function set_color(color)
 
     set_dirty_flag()
   end
+end
+
+function set_fill_pattern(index)
+  cursor.patternIndex = index
 end
 
 function table_has_value(t, value)
@@ -1324,7 +1375,9 @@ function finalize_drawing_points()
   -- finalize the WIP polygon
   table.insert(polygons, {
     points = drawingPoints,
-    color = cursor.color
+    color = cursor.color,
+    bgColor = cursor.bgColor,
+    patternIndex = cursor.patternIndex
   })
 
   if #selectedShapes == 0 then
@@ -1456,7 +1509,7 @@ function point_in_polygon(point, poly)
   return c
 end
 
-function draw_shape(poly, rgba)
+function draw_shape(poly, rgba, disableFillPattern)
   love.graphics.setColor(rgba)
   love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
@@ -1472,16 +1525,13 @@ function draw_shape(poly, rgba)
       poly.points[2].x, poly.points[2].y)
   else
     -- draw a polygon
-    fill_polygon(poly)
+    fill_polygon(poly, disableFillPattern)
   end
 end
 
-function fill_polygon(poly)
+function fill_polygon(poly, disableFillPattern)
   -- find the bounds of the polygon
   local x1, x2, y1, y2 = find_bounds(poly.points)
-
-  -- debug
-  poly.patternIndex = 1
 
   for y = y2, y1, -1 do
     -- find intersecting nodes
@@ -1492,9 +1542,9 @@ function fill_polygon(poly)
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
 
-      if poly.patternIndex > 0 then
+      if poly.patternIndex > 0 and not disableFillPattern then
         for x = x1, x2 do
-          pset(x, y, fillPatterns[poly.patternIndex])
+          pset(x, y, poly.color, poly.bgColor, fillPatterns[poly.patternIndex])
         end
       else
         picolove.line(x1, y, x2, y)
@@ -1503,17 +1553,21 @@ function fill_polygon(poly)
   end
 end
 
-function get_pattern_bit(fillPattern, x, y)
+function get_pattern_bit(pattern, x, y)
   x = x % 4
   y = y % 4
 
   local index = ((4 * y) + x) + 1
-  return fillPattern[index]
+  return pattern[index]
 end
 
-function pset(x, y, fillPattern)
-  local bit = get_pattern_bit(fillPattern, x, y)
+function pset(x, y, color, bgColor, fillPattern)
+  local bit = get_pattern_bit(fillPattern.pattern, x, y)
   if bit == 1 then
+    love.graphics.setColor(palette[color])
+    love.graphics.points(x + 0.5, y + 0.5)
+  elseif not fillPattern.transparent then
+    love.graphics.setColor(palette[bgColor])
     love.graphics.points(x + 0.5, y + 0.5)
   end
 end
@@ -1561,7 +1615,7 @@ function draw_tool()
 
   -- draw a flashing overlay over the selected polygons
   for _, poly in pairs(selectedShapes) do
-    draw_shape(poly, selectionFlash:get_color())
+    draw_shape(poly, selectionFlash:get_color(), true)
   end
 
   -- draw a flashing overlay on the selected points
@@ -1864,6 +1918,67 @@ function draw_palette()
     paletteDisplay.colorH + lineW)
 end
 
+function render_fill_pattern_swatches()
+  love.graphics.push()
+  love.graphics.setCanvas(fillPatternSwatchCanvas)
+  love.graphics.clear(0, 0, 0, 0)
+
+  local startY = PATTERN_SWATCH_ROW_H
+  for i, pattern in ipairs(fillPatterns) do
+    for y = startY, startY + PATTERN_SWATCH_H - 1 do
+      for x = 0, PATTERN_SWATCH_W - 1 do
+        pset(x, y, cursor.color, cursor.bgColor, pattern)
+      end
+    end
+
+    startY = startY + PATTERN_SWATCH_ROW_H
+  end
+
+  love.graphics.pop()
+  love.graphics.setCanvas()
+end
+
+function draw_fill_pattern_selector()
+  local x = paletteDisplay.x + (paletteDisplay.colorW * 4) + (canvasScale * 2)
+  local y = paletteDisplay.y
+
+  love.graphics.push()
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.scale(canvasScale, canvasScale)
+  love.graphics.draw(fillPatternSwatchCanvas, x / canvasScale, y / canvasScale)
+  love.graphics.pop()
+
+  -- Outline the patterns
+  love.graphics.push()
+  love.graphics.setLineWidth(1)
+  love.graphics.setLineStyle('rough')
+
+  local outlineMargin = 2
+  local outlineW = (canvasScale * PATTERN_SWATCH_W) + (outlineMargin * 2)
+  local outlineH = (canvasScale * PATTERN_SWATCH_H) + (outlineMargin * 2)
+  for i = 0, MAX_FILL_PATTERNS do
+    local y2 = y + (i * PATTERN_SWATCH_ROW_H * canvasScale)
+
+    if i == cursor.patternIndex then
+      love.graphics.setColor(1, 1, 1)
+    else
+      love.graphics.setColor(.5, .5, .5)
+    end
+
+    if i == 0 then
+      -- Draw a slash to indicate no fill pattern is here
+      love.graphics.line(x - 2, y2 - 2,
+        x + outlineW - outlineMargin,
+        y + outlineH - outlineMargin)
+    end
+
+    love.graphics.rectangle('line',
+      x - outlineMargin, y2 - outlineMargin, outlineW, outlineH)
+  end
+
+  love.graphics.pop()
+end
+
 function draw_wip_poly()
   local points = {}
 
@@ -2057,6 +2172,8 @@ function love.draw()
   -- draw status stuff
   draw_status()
   draw_palette()
+  render_fill_pattern_swatches() -- debug
+  draw_fill_pattern_selector()
 
   -- draw the cursor
   draw_cursor()
