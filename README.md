@@ -10,15 +10,16 @@ PICO-8 cartridges have a very limited space (128x128 pixels) in which to store
 raster graphics so I made this because I needed a way to store many screens
 worth of art in a single cartridge.
 
-Each drawing is made up of several shapes. Three different types of "shape" are
-supported:
+Each painting is made up of several shapes.  In order to keep this
+implementation small in both data storage and rendering code, only three
+different types of "shape" are supported:
 * polygon
 * line
 * single point
 
 Each shape has a color (one of the 16 PICO-8 colors).
 
-The drawing is saved as a hex string, like this:
+The painting is saved as a hex string, like this:
 
 ```
 05090a1c291830481c451e2f06080c2f26252a4012361c520c51
@@ -30,7 +31,9 @@ strings can be stored, parsed, and rendered from within a PICO-8 cart.
 ## How do I load/display the vector art in my PICO-8 cart?
 This program produces hexadecimal strings that you can copy and paste as a
 string into a PICO-8 program.  See the file sample-use.p8 for PICO-8 code which
-parses and displays one of these strings.
+parses and displays one of these strings.  (Tip: The sample cart only uses
+a string, but it is possible to store painting data in the sprite sheet or
+other data regions of the cart)
 
 ## What are the details of the save format?
 The "painting" is a series of shapes, optionally followed by 1-3 fill patterns.
@@ -44,11 +47,11 @@ Each shape's data is laid out in the following manner:
 |           1 | color (first four bits are background color for fill-pattern) |
 
 #### First Byte Layout
-  * The first two bits (mask `0b11000000`) are a fill pattern index.  A value
-    of 0 means the shape does not use a fill pattern. Values 1-3 refer to the
-    index of a fill-pattern (stored at the end of the painting data)
-  * The remaining six bits (mask `0b00111111`) are the shape's point-count
-    (therefore there is a maximum of of 64 points in a shape)
+* The first two bits (mask `0b11000000`) are a fill pattern index.  A value of
+  0 means the shape does not use a fill pattern. Values 1-3 refer to the index
+  of a fill-pattern (stored at the end of the painting data)
+* The remaining six bits (mask `0b00111111`) are the shape's point-count
+  (therefore there is a maximum of of 64 points in a shape)
 
 Then for each point, the following pair of bytes repeats:
 
@@ -101,6 +104,7 @@ directory.
 * p: Select **P**oints (hold shift while clicking to select multiple points)
 * s: Select **S**hapes (hold shift while clicking to select multiple shapes)
 * c: Change **C**olor of selected shape(s)
+  * This includes secondary color (used only by fill-patterns)
 * f: Change **F**ill-Pattern index of selected shape(s)
 * m: **M**ove tool (use cursor keys to move the selected point(s)/shape(s))
   * Note: When not in Keyboard-Friendly Mode, you don't need to use this mode;
@@ -139,7 +143,7 @@ directory.
 
 #### "Draw" Tool
 * Action Button: Place a point under the cursor
-* Enter or Right-Click: Finalize drawing
+* Enter or Right-Click: Finalize the shape which is currently being drawn
 
 #### "Select Shape(s)"/"Select Point(s)" Tool
 * Action Button: Select the polygon under the cursor
@@ -188,7 +192,7 @@ https://love2d.org/wiki/love.filesystem).  Inside that folder you will find a
 typed in the "save" dialog.
 
 #### Loading
-To load a previously saved drawing, drag and drop the file onto the window
+To load a previously saved painting, drag and drop the file onto the window
 using your OS's file manager UI.
 
 Alternately, you may run the program with a command-line argument which is
@@ -196,5 +200,5 @@ interpreted as a filename to load. The file must be inside the save directory,
 and the path must be relative to that folder.
 
 #### Importing a Background Image
-To import a background image to use as a guide for your drawing, drag and drop
-the image file onto the window using your OS's file manager UI.
+To import a background image to use as a guide for tracing, drag and drop the
+image file onto the window using your OS's file manager UI.
