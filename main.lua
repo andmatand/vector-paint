@@ -13,14 +13,16 @@ MODES = {
 TOOLS = {
   BG_IMAGE = 1,
   CHANGE_COLOR = 2,
-  DRAW = 3,
-  MOVE = 4,
-  SELECT_POINT = 5,
-  SELECT_SHAPE = 6,
+  CHANGE_FILL_PATTERN = 3,
+  DRAW = 4,
+  MOVE = 5,
+  SELECT_POINT = 6,
+  SELECT_SHAPE = 7,
 }
 TOOL_NAMES = {
   [TOOLS.BG_IMAGE] = 'adjust backgroud image',
-  [TOOLS.CHANGE_COLOR] = 'change color',
+  [TOOLS.CHANGE_COLOR] = 'change shape color',
+  [TOOLS.CHANGE_FILL_PATTERN] = 'change shape fill-pattern index',
   [TOOLS.DRAW] = 'draw',
   [TOOLS.MOVE] = 'move',
   [TOOLS.SELECT_POINT] = 'select point(s)',
@@ -178,6 +180,11 @@ function love.load(arg)
     {1, 1, 1,  0},
     {0, 0, 0, .5},
     {1, 1, 1,  0},
+  })
+
+  patternSelectionFlash = ColorFlash.new(.5, {
+    {1, 1, 1},
+    {0, 0, 0},
   })
 
   mode = MODES.NORMAL
@@ -454,8 +461,12 @@ end
 
 function update_cursor()
   cursor.flash:update()
-  selectionFlash:update()
-  hoverFlash:update()
+  if mode == MODES.NORMAL then
+    selectionFlash:update()
+    hoverFlash:update()
+  elseif mode == MODES.EDIT_FILL_PATTERN then
+    patternSelectionFlash:update()
+  end
 
   local delta = .25
   local friction = .80
@@ -749,12 +760,12 @@ end
 
 function ctrl_is_down()
   if love.system.getOS() == 'OS X' then
-    if love.keyboard.isDown('lgui') or love.keyboard.isDown('rgui') then
+    if love.keyboard.isDown('lgui', 'rgui') then
       return true
     end
   end
 
-  return love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl') 
+  return love.keyboard.isDown('lctrl', 'rctrl')
 end
 
 function get_file_extension(filename)
@@ -803,6 +814,13 @@ function set_mouse_only_mode(enabled)
 end
 
 function love.keypressed(key, scancode)
+  local shiftIsDown = love.keyboard.isDown('lshift', 'rshift')
+  local ctrlIsDown = ctrl_is_down()
+
+  if ctrlIsDown and key == 'q' then
+    love.event.quit()
+  end
+
   if mode == MODES.SAVE then
     if key == 'return' then
       currentFilename = rtrim(currentFilename)
@@ -819,14 +837,38 @@ function love.keypressed(key, scancode)
     end
 
     return
-  elseif mode == MODES.EDIT_FILL_PATTERN then
+  end
+
+  -- allow certain commands during EDIT_FILL_PATTERN mode
+  if not ctrlIsDown then
+    if key == '9' then
+      if cursor.patternIndex > 0 then
+        set_fill_pattern(cursor.patternIndex - 1)
+      end
+    elseif key == '0' then
+      if cursor.patternIndex < MAX_FILL_PATTERN_INDEX then
+        set_fill_pattern(cursor.patternIndex + 1)
+      end
+    end
+    if key == 'u' then
+      if shiftIsDown then
+        redo()
+      else
+        undo()
+      end
+    end
+  end
+
+  if mode == MODES.EDIT_FILL_PATTERN then
     local pbit = FILL_PATTERN_SCANCODES[scancode]
     if pbit then
+      save_undo_state()
       toggle_pattern_bit(pbit)
       set_dirty_flag()
     end
 
     if key == 't' then
+      save_undo_state()
       toggle_pattern_transparency()
       set_dirty_flag()
     end
@@ -837,10 +879,6 @@ function love.keypressed(key, scancode)
 
     return
   end
-
-  local shiftIsDown = (love.keyboard.isDown('lshift') or
-    love.keyboard.isDown('rshift'))
-  local ctrlIsDown = ctrl_is_down()
 
   if ctrlIsDown then
     if key == 'n' then
@@ -859,8 +897,6 @@ function love.keypressed(key, scancode)
 
       -- don't let this key trigger anything else below
       return
-    elseif key == 'q' then
-      love.event.quit()
     elseif key == 'c' and #selectedShapes > 0 then
       copy(selectedShapes)
     elseif key == 'v' and clipboard then
@@ -870,7 +906,7 @@ function love.keypressed(key, scancode)
       else
         paste(0, 0)
       end
-    elseif key == 'f' and cursor.patternIndex > 0 then
+    elseif key == 'f' then
       mode = MODES.EDIT_FILL_PATTERN
       return
     end
@@ -888,7 +924,10 @@ function love.keypressed(key, scancode)
       cursor.tool = TOOLS.MOVE
     elseif key == 'c' then
       cursor.tool = TOOLS.CHANGE_COLOR
-      set_color(cursor.color)
+      update_color_change_tool()
+    elseif key == 'f' then
+      cursor.tool = TOOLS.CHANGE_FILL_PATTERN
+      update_fill_pattern_change_tool()
     elseif key == 'b' then
       cursor.tool = TOOLS.BG_IMAGE
     end
@@ -914,14 +953,8 @@ function love.keypressed(key, scancode)
       push_secondary_button()
     elseif key == 'i' then
       insert_point()
-    elseif key == 'u' then
-      undo()
     elseif key == 'h' then
       selectionFlash:set_enabled(not selectionFlash:is_enabled())
-    end
-  elseif shiftIsDown then
-    if key == 'u' then
-      redo()
     end
   end
 
@@ -999,16 +1032,6 @@ function love.keypressed(key, scancode)
   elseif key == 'w' then
     if cursor.bgColor < #palette then
       set_bg_color(cursor.bgColor + 1)
-    end
-  end
-
-  if key == '3' then
-    if cursor.patternIndex > 0 then
-      set_fill_pattern(cursor.patternIndex - 1)
-    end
-  elseif key == '4' then
-    if cursor.patternIndex < MAX_FILL_PATTERN_INDEX then
-      set_fill_pattern(cursor.patternIndex + 1)
     end
   end
 
@@ -1307,8 +1330,7 @@ function push_primary_button()
     return
   end
 
-  local shiftIsDown = (love.keyboard.isDown('lshift') or
-    love.keyboard.isDown('rshift'))
+  local shiftIsDown = love.keyboard.isDown('lshift', 'rshift')
 
   if cursor.tool == TOOLS.DRAW then
     draw_point()
@@ -1467,19 +1489,36 @@ end
 
 function set_bg_color(color)
   cursor.bgColor = color
+  update_color_change_tool()
 end
 
 function set_color(color)
   cursor.color = color
+  update_color_change_tool()
+end
 
-  if cursor.tool == TOOLS.CHANGE_COLOR then
+function update_color_change_tool()
+  if cursor.tool ~= TOOLS.CHANGE_COLOR then
+    return
+  end
+
+  local targetShapes = get_target_polygons()
+
+  local anyColorsWillChange = false
+  for _, shape in pairs(targetShapes) do
+    if shape.color ~= cursor.color or shape.bgColor then
+      anyColorsWillChange = true
+      break
+    end
+  end
+
+  if anyColorsWillChange then
     save_undo_state()
 
-    local targetPolys = get_target_polygons()
-
-    -- change the color of all target polygons
-    for _, poly in pairs(targetPolys) do
-      poly.color = color
+    -- change the color of all target shapes
+    for _, shape in pairs(targetShapes) do
+      shape.color = cursor.color
+      shape.bgColor = cursor.bgColor
     end
 
     set_dirty_flag()
@@ -1488,6 +1527,35 @@ end
 
 function set_fill_pattern(index)
   cursor.patternIndex = index
+  update_fill_pattern_change_tool()
+  patternSelectionFlash:reset()
+end
+
+function update_fill_pattern_change_tool()
+  if cursor.tool ~= TOOLS.CHANGE_FILL_PATTERN then
+    return
+  end
+
+  local targetShapes = get_target_polygons()
+
+  local anyPatternsIndiciesWillChange = false
+  for _, shape in pairs(targetShapes) do
+    if shape.patternIndex ~= cursor.patternIndex then
+      anyPatternsIndiciesWillChange = true
+      break
+    end
+  end
+
+  if anyPatternsIndiciesWillChange then
+    save_undo_state()
+
+    -- change the pattern index of all target shapes
+    for _, shape in pairs(targetShapes) do
+      shape.patternIndex = cursor.patternIndex
+    end
+
+    set_dirty_flag()
+  end
 end
 
 function table_has_value(t, value)
@@ -1773,9 +1841,11 @@ function draw_tool()
     love.graphics.rectangle('line', x - 1, y - 1, 2, 2)
   end
 
-  -- draw a flashing overlay over the selected polygons
-  for _, poly in pairs(selectedShapes) do
-    draw_shape(poly, selectionFlash:get_color(), true)
+  if mode == MODES.NORMAL then
+    -- draw a flashing overlay over the selected polygons
+    for _, poly in pairs(selectedShapes) do
+      draw_shape(poly, selectionFlash:get_color(), true)
+    end
   end
 
   -- draw a flashing overlay on the selected points
@@ -1834,11 +1904,18 @@ function draw_status()
     love.graphics.print(point_to_string(cursorDisplayPoint), x, y)
   end
 
+  if mode == MODES.EDIT_FILL_PATTERN then
+    y = y + lineh
+    love.graphics.print('current mode: ' .. 'edit fill-pattern', x, y)
+  end
+
   y = y + lineh
   if mode == MODES.EDIT_FILL_PATTERN then
-    love.graphics.print('current mode: ' .. 'edit fill-pattern', x, y)
-  else
-    love.graphics.print('current tool: ' .. TOOL_NAMES[cursor.tool], x, y)
+    love.graphics.setColor(.5, .5, .5)
+  end
+  love.graphics.print('current tool: ' .. TOOL_NAMES[cursor.tool], x, y)
+  if mode == MODES.EDIT_FILL_PATTERN then
+    love.graphics.setColor(1, 1, 1)
   end
 
   if not mouseOnlyMode then
@@ -1874,31 +1951,59 @@ function draw_status()
   local selectedPolys
   local selectionLabel = 'selected shape:'
   if #drawingPoints > 0 then
-    selectedPolys = {{points = drawingPoints, color = cursor.color}}
+    selectedPolys = {{
+        points = drawingPoints,
+        color = cursor.color,
+        bgColor = cursor.bgColor,
+        patternIndex = cursor.patternIndex
+    }}
     selectionLabel = 'drawing shape:'
   else
     selectedPolys = selectedShapes
   end
 
-  if selectedPolys then
-    y = 300
+  y = 300
+
+  if mode == MODES.EDIT_FILL_PATTERN then
+    local indexString = cursor.patternIndex
+    if cursor.patternIndex == 0 then
+      indexString = 'none'
+    end
+    love.graphics.print('selected fill-pattern: ' .. indexString, x, y)
+    y = y + lineh
+
+    if cursor.patternIndex > 0 then
+      local fillPattern = fillPatterns[cursor.patternIndex]
+      local yn = fillPattern.isTransparent and 'yes' or 'no'
+      love.graphics.print('  transparent secondary color: ' .. yn, x, y)
+      y = y + lineh
+    end
+  elseif selectedPolys then
     if #selectedPolys == 1 then
+      local shape = selectedPolys[1]
+
       love.graphics.print(selectionLabel, x, y)
       y = y + lineh
 
-      local index = find_polygon_index(selectedPolys[1])
+      local index = find_polygon_index(shape)
       if index then
-        love.graphics.print('  index: ' .. find_polygon_index(selectedPolys[1]),
+        love.graphics.print('  index: ' .. find_polygon_index(shape),
           x, y)
         y = y + lineh
       end
 
       if selectedPolys[1].color then
-        love.graphics.print(
-          {{1, 1, 1}, '  color: ',
-           palette[selectedPolys[1].color], selectedPolys[1].color
-          },
-          x, y)
+        local colorTxt = {
+          {1, 1, 1}, '  color: ',
+          palette[shape.color], shape.color,
+        }
+
+        if shape.patternIndex > 0 then
+          table.insert(colorTxt, palette[shape.bgColor])
+          table.insert(colorTxt, ' ' .. shape.bgColor)
+        end
+
+        love.graphics.print(colorTxt, x, y)
         y = y + lineh
       end
 
@@ -2127,7 +2232,11 @@ function draw_fill_pattern_selector()
     local y2 = y + (i * PATTERN_SWATCH_ROW_H * canvasScale)
 
     if i == cursor.patternIndex then
-      love.graphics.setColor(1, 1, 1)
+      if mode == MODES.EDIT_FILL_PATTERN then
+        love.graphics.setColor(patternSelectionFlash:get_color())
+      else
+        love.graphics.setColor(1, 1, 1)
+      end
     else
       love.graphics.setColor(.5, .5, .5)
     end
@@ -2165,7 +2274,7 @@ function draw_wip_poly()
     local b = points[i + 1]
 
     love.graphics.setColor(palette[cursor.color])
-    picolove.line(a.x, a.y, b.x, b.y)
+    picolove.line(a.x, a.y, b.x, b.y)--, fillPatterns[cursor.patternIndex])
 
     -- draw a flashing handle on this point
     love.graphics.setColor(selectionFlash:get_color())
@@ -2180,6 +2289,7 @@ function apply_state(state)
   cursor.color = state.cursorColor
   cursor.tool = state.cursorTool
   bg = state.bg
+  fillPatterns = state.fillPatterns
 end
 
 function undo()
@@ -2230,6 +2340,7 @@ function get_state()
   state.cursorColor = cursor.color
   state.cursorTool = cursor.tool
   state.bg = copy_table(bg)
+  state.fillPatterns = copy_table(fillPatterns)
 
   return state
 end

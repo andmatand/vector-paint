@@ -105,15 +105,8 @@ function picolove.line(x0,y0,x1,y1, loveColor)
     end
   end
 
-  -- debug
-  --print('line points:')
-  --for i = 1, #points do
-  --  print('  ' .. i, points[i][1], points[i][2])
-  --end
+  -- TODO: support fill-patterns for lines
 
-  --lineMesh:setVertices(points)
-  --lineMesh:setDrawRange(1,#points)
-  --love.graphics.draw(lineMesh)
   love.graphics.points(points)
 end
 

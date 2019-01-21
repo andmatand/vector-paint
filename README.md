@@ -100,7 +100,8 @@ directory.
 * d: **D**raw
 * p: Select **P**oints (hold shift while clicking to select multiple points)
 * s: Select **S**hapes (hold shift while clicking to select multiple shapes)
-* c: Replace **C**olor of selected shape(s)
+* c: Change **C**olor of selected shape(s)
+* f: Change **F**ill-Pattern index of selected shape(s)
 * m: **M**ove tool (use cursor keys to move the selected point(s)/shape(s))
   * Note: When not in Keyboard-Friendly Mode, you don't need to use this mode;
     the arrow keys can be used at (almost) any time to move the selected
@@ -111,8 +112,10 @@ directory.
 * Ctrl/Command + S: **S**ave
 * Ctrl/Command + N: **N**ew Painting (clears all shapes, is undo-able)
 * Ctrl/Command + Q: **Q**uit
+* Ctrl/Command + F: enter **F**ill-Pattern Editor Mode (See section below)
 * F11: Toggle fullscreen/windowed mode
-* 1/2: Select the next/previous color in the palette
+* 1/2: Select the previous/next color in the palette
+* 9/0: Select the previous/next fill-pattern
 * \[: Move the selected shape(s) down in the layer ordering
 * \]: Move the selected shape(s) up in the layer ordering
 * F5: Force re-render the canvas (probably not necesary unless there's a bug)
@@ -162,6 +165,20 @@ directory.
 * -: decrease scale of background image (hold Ctrl for greater precision)
 * +: increase scale of background image (hold Ctrl for greater precision)
 * 0: reset background image scale to initial "best fit"
+
+#### Fill-Pattern Editor Mode
+* Use the following keys to toggle the bits of the selected fill pattern:
+  ```
+  1234
+  qwer
+  asdf
+  zxcv
+  ```
+  The keys are laid out in a 4x4 grid in order to mirror the layout of the
+  fill-pattern itself.
+* Press t to toggle transparency of the secondary color
+* Press Esc to exit and return to "normal" mode
+
 
 #### Saving
 Since this is a LÖVE program, it is only allowed to write to a folder inside a
