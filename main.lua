@@ -22,7 +22,7 @@ TOOL_NAMES = {
   [TOOLS.SELECT_SHAPE] = 'select shape(s)',
 }
 MAX_UNDO = 500
-MAX_FILL_PATTERNS = 3
+MAX_FILL_PATTERN_INDEX = 3
 
 function love.load(arg)
   CANVAS_W = 128
@@ -40,7 +40,7 @@ function love.load(arg)
   POINT_MAX_Y = 254
 
   MAX_POLYGONS = 256
-  MAX_POLYGON_POINTS = 256
+  MAX_POLYGON_POINTS = 64
 
   canvasMargin = 50
 
@@ -175,12 +175,19 @@ end
 function get_painting_data()
   local bytes = {}
 
-  -- add each polygon
+  -- add each shape
   for i = 1, #polygons do
     local poly = polygons[i]
 
-    table.insert(bytes, #poly.points) -- point count
-    table.insert(bytes, poly.color)   -- color
+    assert(poly.patternIndex <= MAX_FILL_PATTERN_INDEX)
+    assert(#poly.points <= MAX_POLYGON_POINTS)
+
+    -- add the shape's fill-pattern index and point count
+    local byte1 = bit.bor(bit.lshift(poly.patternIndex, 6), #poly.points)
+    table.insert(bytes, byte1)
+
+    -- add the shape's color
+    table.insert(bytes, bit.bor(bit.lshift(poly.bgColor, 4), poly.color))
 
     -- add each point
     for j = 1, #poly.points do
@@ -283,7 +290,9 @@ function load_painting_data(data)
     local pointCount = bit.band(byte1, 0b00111111)
 
     -- read the color
-    polygon.color = reader:get_next_byte()
+    local colorByte = reader:get_next_byte()
+    polygon.color = bit.band(colorByte, 0b00001111)
+    polygon.bgColor = bit.rshift(bit.band(colorByte, 0b11110000), 4)
 
     -- read each point
     for i = 1, pointCount do
@@ -867,7 +876,7 @@ function love.keypressed(key)
       set_fill_pattern(cursor.patternIndex - 1)
     end
   elseif key == '4' then
-    if cursor.patternIndex < MAX_FILL_PATTERNS then
+    if cursor.patternIndex < MAX_FILL_PATTERN_INDEX then
       set_fill_pattern(cursor.patternIndex + 1)
     end
   end
@@ -1956,7 +1965,7 @@ function draw_fill_pattern_selector()
   local outlineMargin = 2
   local outlineW = (canvasScale * PATTERN_SWATCH_W) + (outlineMargin * 2)
   local outlineH = (canvasScale * PATTERN_SWATCH_H) + (outlineMargin * 2)
-  for i = 0, MAX_FILL_PATTERNS do
+  for i = 0, MAX_FILL_PATTERN_INDEX do
     local y2 = y + (i * PATTERN_SWATCH_ROW_H * canvasScale)
 
     if i == cursor.patternIndex then
