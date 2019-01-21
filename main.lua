@@ -77,15 +77,15 @@ function love.load(arg)
   fillPatterns = {
     [1] = {
       pattern = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
-      transparent = true
+      isTransparent = true
     },
     [2] = {
       pattern = {1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
-      transparent = false
+      isTransparent = false
     },
     [3] = {
       pattern = {0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0},
-      transparent = false
+      isTransparent = false
     }
   }
 
@@ -164,6 +164,10 @@ function love.load(arg)
   undoHistory = {}
   undoIndex = 1
   redoStack = {}
+  status = {
+    byteCount = 0
+  }
+
   find_best_canvas_scale()
 
   -- If a command-line argument is given, treat it as a filename to load
@@ -172,36 +176,99 @@ function love.load(arg)
   end
 end
 
+function optimize_unused_fill_patterns(shapes, fillPatterns)
+  local usedFillPatterns = {}
+
+  for _, shape in pairs(shapes) do
+    if shape.patternIndex > 0 then
+      local pattern = fillPatterns[shape.patternIndex]
+      if not pattern.isUsed then
+        pattern.isUsed = true
+        pattern.oldIndex = shape.patternIndex
+        table.insert(usedFillPatterns, pattern)
+      end
+    end
+  end
+
+  -- Sort the used patterns by current index so the order is deterministic
+  table.sort(usedFillPatterns, function (a, b)
+    return a.oldIndex < b.oldIndex
+  end)
+
+  local patternIndexTranslationTable = {}
+  if #usedFillPatterns > 0 then
+    -- create a lookup table
+    for i, pattern in ipairs(usedFillPatterns) do
+      patternIndexTranslationTable[pattern.oldIndex] = i
+    end
+
+    -- update shapes' pattern indexes
+    for _, shape in pairs(shapes) do
+      shape.patternIndex = patternIndexTranslationTable[shape.patternIndex]
+    end
+
+  end
+
+  return usedFillPatterns
+end
+
 function get_painting_data()
   local bytes = {}
 
-  -- add each shape
-  for i = 1, #polygons do
-    local poly = polygons[i]
+  local shapes = copy_table(polygons)
+  local fillPatterns = copy_table(fillPatterns)
+  local usedFillPatterns = optimize_unused_fill_patterns(shapes, fillPatterns)
 
-    assert(poly.patternIndex <= MAX_FILL_PATTERN_INDEX)
-    assert(#poly.points <= MAX_POLYGON_POINTS)
+  -- add each shape
+  for i = 1, #shapes do
+    local shape = shapes[i]
+
+    assert(shape.patternIndex <= MAX_FILL_PATTERN_INDEX)
+    assert(#shape.points <= MAX_POLYGON_POINTS)
 
     -- add the shape's fill-pattern index and point count
-    local byte1 = bit.bor(bit.lshift(poly.patternIndex, 6), #poly.points)
+    local byte1 = bit.bor(bit.lshift(shape.patternIndex, 6), #shape.points)
     table.insert(bytes, byte1)
 
     -- add the shape's color
-    table.insert(bytes, bit.bor(bit.lshift(poly.bgColor, 4), poly.color))
+    table.insert(bytes, bit.bor(bit.lshift(shape.bgColor, 4), shape.color))
 
     -- add each point
-    for j = 1, #poly.points do
-      local point = poly.points[j]
+    for j = 1, #shape.points do
+      local point = shape.points[j]
       table.insert(bytes, point.x)
       table.insert(bytes, point.y + 1) -- add 1 to y to allow -1 without sign
     end
   end
 
+  -- add used fill-patterns
+  for _, fillPattern in ipairs(usedFillPatterns) do
+    local byte1 = bit.rshift(
+      bit.band(fillPattern.pattern, 0b1111111100000000),
+      8)
+    local byte2 = bit.band(fillPattern.pattern, 0b0000000011111111)
+
+    table.insert(bytes, byte1)
+    table.insert(bytes, byte2)
+  end
+
+  -- add transparency bits for fill-patterns
+  local transparencyByte = 0
+  for i, fillPattern in ipairs(usedFillPatterns) do
+    if fillPattern.isTransparent then
+      local newBit = bit.rshift(0b10000000, i - 1)
+      transparencyByte = bit.band(transparencyByte, newBit)
+    end
+  end
+
+  return convert_to_hex(bytes)
+end
+
+function convert_to_hex(bytes)
   local hex = ''
   for i = 1, #bytes do
     hex = hex .. bit.tohex(bytes[i], 2)
   end
-
   return hex
 end
 
@@ -1575,7 +1642,7 @@ function pset(x, y, color, bgColor, fillPattern)
   if bit == 1 then
     love.graphics.setColor(palette[color])
     love.graphics.points(x + 0.5, y + 0.5)
-  elseif not fillPattern.transparent then
+  elseif not fillPattern.isTransparent then
     love.graphics.setColor(palette[bgColor])
     love.graphics.points(x + 0.5, y + 0.5)
   end
@@ -1669,9 +1736,8 @@ function draw_status()
   local y = canvasMargin
   local lineh = love.graphics.getFont():getHeight()
 
-  local byteCount = string.len(get_painting_data()) / 2
   love.graphics.print(#polygons .. ' shapes  ' ..
-    '(' .. byteCount .. ' bytes)', x, y)
+    '(' .. status.byteCount .. ' bytes)', x, y)
   love.graphics.print('FPS: ' .. love.timer.getFPS(), x + 215, y)
 
   y = y + lineh
@@ -2170,6 +2236,9 @@ function love.draw()
   end
 
   if canvasIsDirty then
+    -- update the total byte count
+    status.byteCount = string.len(get_painting_data()) / 2
+
     -- redraw all shapes onto the painting canvas
     render_polygons()
     canvasIsDirty = false
