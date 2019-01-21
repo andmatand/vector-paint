@@ -5,6 +5,11 @@ local picolove = require('lib.picolove')
 require('class.colorflash')
 
 -- define global constants
+MODES = {
+  NORMAL = 1,
+  SAVE = 2,
+  EDIT_FILL_PATTERN = 3,
+}
 TOOLS = {
   BG_IMAGE = 1,
   CHANGE_COLOR = 2,
@@ -23,6 +28,24 @@ TOOL_NAMES = {
 }
 MAX_UNDO = 500
 MAX_FILL_PATTERN_INDEX = 3
+FILL_PATTERN_SCANCODES = {
+  ['1'] = 1,
+  ['2'] = 2,
+  ['3'] = 3,
+  ['4'] = 4,
+  ['q'] = 5,
+  ['w'] = 6,
+  ['e'] = 7,
+  ['r'] = 8,
+  ['a'] = 9,
+  ['s'] = 10,
+  ['d'] = 11,
+  ['f'] = 12,
+  ['z'] = 13,
+  ['x'] = 14,
+  ['c'] = 15,
+  ['v'] = 16,
+}
 
 function love.load(arg)
   CANVAS_W = 128
@@ -157,6 +180,7 @@ function love.load(arg)
     {1, 1, 1,  0},
   })
 
+  mode = MODES.NORMAL
   mouseOnlyMode = true
   currentFilename = ''
 
@@ -190,7 +214,7 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
     end
   end
 
-  print('used :' .. #usedFillPatterns)
+  print('used fill-pattern count: ' .. #usedFillPatterns)
 
   -- Sort the used patterns by current index so the order is deterministic
   table.sort(usedFillPatterns, function (a, b)
@@ -708,7 +732,7 @@ function scale_shapes(shapes, scale)
 end
 
 function love.textinput(t)
-  if mode == 'save' then
+  if mode == MODES.SAVE then
     if not currentFilename then
       currentFilename = ''
     end
@@ -778,20 +802,37 @@ function set_mouse_only_mode(enabled)
   end
 end
 
-function love.keypressed(key)
-  if mode == 'save' then
+function love.keypressed(key, scancode)
+  if mode == MODES.SAVE then
     if key == 'return' then
       currentFilename = rtrim(currentFilename)
 
       save_painting(currentFilename)
-      mode = nil
+      mode = MODES.NORMAL
     elseif key == 'escape' then
-      mode = nil
+      mode = MODES.NORMAL
     elseif key == 'backspace' and #currentFilename > 0 then
       local byteoffset = utf8.offset(currentFilename, -1)
       if byteoffset then
         currentFilename = string.sub(currentFilename, 1, byteoffset - 1)
       end
+    end
+
+    return
+  elseif mode == MODES.EDIT_FILL_PATTERN then
+    local pbit = FILL_PATTERN_SCANCODES[scancode]
+    if pbit then
+      toggle_pattern_bit(pbit)
+      set_dirty_flag()
+    end
+
+    if key == 't' then
+      toggle_pattern_transparency()
+      set_dirty_flag()
+    end
+
+    if key == 'escape' then
+      mode = MODES.NORMAL
     end
 
     return
@@ -814,7 +855,7 @@ function love.keypressed(key)
 
       set_dirty_flag()
     elseif key == 's' then
-      mode = 'save'
+      mode = MODES.SAVE
 
       -- don't let this key trigger anything else below
       return
@@ -829,6 +870,9 @@ function love.keypressed(key)
       else
         paste(0, 0)
       end
+    elseif key == 'f' and cursor.patternIndex > 0 then
+      mode = MODES.EDIT_FILL_PATTERN
+      return
     end
   elseif not shiftIsDown then
     -- switch tools
@@ -1083,6 +1127,22 @@ end
 
 function mid(min, n, max)
   return math.min(math.max(min, n), max)
+end
+
+function toggle_pattern_bit(i)
+  local fillPattern = fillPatterns[cursor.patternIndex]
+  local pattern = fillPattern.pattern
+
+  if pattern[i] == 1 then
+    pattern[i] = 0
+  else
+    pattern[i] = 1
+  end
+end
+
+function toggle_pattern_transparency()
+  local fillPattern = fillPatterns[cursor.patternIndex]
+  fillPattern.isTransparent = not fillPattern.isTransparent
 end
 
 function insert_point()
@@ -1441,6 +1501,10 @@ function table_has_value(t, value)
 end
 
 function love.mousepressed(x, y, button)
+  if mode ~= MODES.NORMAL then
+    return
+  end
+
   if button == 1 then
     if mouseIsOnCanvas then
       push_primary_button()
@@ -1771,7 +1835,11 @@ function draw_status()
   end
 
   y = y + lineh
-  love.graphics.print('current tool: ' .. TOOL_NAMES[cursor.tool], x, y)
+  if mode == MODES.EDIT_FILL_PATTERN then
+    love.graphics.print('current mode: ' .. 'edit fill-pattern', x, y)
+  else
+    love.graphics.print('current tool: ' .. TOOL_NAMES[cursor.tool], x, y)
+  end
 
   if not mouseOnlyMode then
     y = y + lineh
@@ -2020,13 +2088,17 @@ function render_fill_pattern_swatches()
 
   local startY = PATTERN_SWATCH_ROW_H
   for i, pattern in ipairs(fillPatterns) do
-    for y = startY, startY + PATTERN_SWATCH_H - 1 do
+    love.graphics.push()
+    love.graphics.translate(0, startY)
+
+    for y = 0, PATTERN_SWATCH_H - 1 do
       for x = 0, PATTERN_SWATCH_W - 1 do
         pset(x, y, cursor.color, cursor.bgColor, pattern)
       end
     end
 
     startY = startY + PATTERN_SWATCH_ROW_H
+    love.graphics.pop()
   end
 
   love.graphics.pop()
@@ -2239,7 +2311,7 @@ function love.draw()
   love.graphics.setCanvas()
   love.graphics.clear(.04, .04, .04)
 
-  if mode == 'save' then
+  if mode == MODES.SAVE then
     love.graphics.setColor(1, 1, 1)
     love.graphics.print('Enter filename to save to:', 20, 20)
     if currentFilename then
