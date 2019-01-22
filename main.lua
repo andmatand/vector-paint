@@ -1,7 +1,7 @@
 local utf8 = require('utf8')
 local bit = require('bit')
 local picolove = require('lib.picolove')
-local inspect = require('lib.inspect')
+--local inspect = require('lib.inspect')
 require('class.colorflash')
 
 -- define global constants
@@ -418,7 +418,6 @@ function load_painting_data(data)
   for i = #fillPatterns, 3 do
     table.insert(fillPatterns, create_default_fill_pattern())
   end
-  print(inspect(fillPatterns))
 
   -- re-render all polygons
   set_dirty_flag()
