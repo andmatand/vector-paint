@@ -1,7 +1,7 @@
 local utf8 = require('utf8')
 local bit = require('bit')
 local picolove = require('lib.picolove')
---local inspect = require('lib.inspect')
+local inspect = require('lib.inspect')
 require('class.colorflash')
 
 -- define global constants
@@ -106,20 +106,10 @@ function love.load(arg)
     outlineMargin = 2
   }
 
-  fillPatterns = {
-    [1] = {
-      pattern = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
-      isTransparent = true
-    },
-    [2] = {
-      pattern = {1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
-      isTransparent = false
-    },
-    [3] = {
-      pattern = {0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0},
-      isTransparent = false
-    }
-  }
+  fillPatterns = {}
+  for i = 1, MAX_FILL_PATTERN_INDEX do
+    fillPatterns[i] = create_default_fill_pattern()
+  end
 
   -- make sure we get ALL the pixels
   love.graphics.setDefaultFilter('nearest', 'nearest')
@@ -244,6 +234,9 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
 
     -- update shapes' pattern indexes
     for _, shape in pairs(shapes) do
+      print('changing shape pattern index ' .. shape.patternIndex .. 'to' ..
+        patternIndexTranslationTable[shape.patternIndex]
+      )
       shape.patternIndex = patternIndexTranslationTable[shape.patternIndex]
     end
   end
@@ -287,7 +280,7 @@ function get_painting_data()
   if #usedFillPatterns > 0 then
     -- add used fill-patterns
     for _, fillPattern in ipairs(usedFillPatterns) do
-      local patternBytes = get_pattern_bytes(fillPattern.pattern)
+      local patternBytes = convert_pattern_array_to_bytes(fillPattern.pattern)
       local byte1 = bit.rshift(
         bit.band(patternBytes, 0b1111111100000000),
         8)
@@ -319,7 +312,7 @@ function convert_to_hex(bytes)
   return hex
 end
 
-function get_pattern_bytes(pattern)
+function convert_pattern_array_to_bytes(pattern)
   local bytes = 0
   for i, pbit in ipairs(pattern) do
     if pbit == 1 then
@@ -328,6 +321,16 @@ function get_pattern_bytes(pattern)
     end
   end
   return bytes
+end
+
+function convert_pattern_bytes_to_array(pattern)
+  local array = {}
+  for i = 1, 16 do
+    local mask = bit.rshift(0b1000000000000000, i - 1)
+    local b = bit.rshift(bit.band(mask, pattern), 16 - i)
+    table.insert(array, b)
+  end
+  return array
 end
 
 function load_painting(filename)
@@ -360,7 +363,7 @@ function save_painting(filename)
 end
 
 function create_painting_reader(data)
-  local obj = {
+  return {
     i = 1,
     data = data,
 
@@ -372,10 +375,12 @@ function create_painting_reader(data)
 
     is_at_end = function(self)
       return (self.i > #data)
+    end,
+
+    is_at_end_of_shapes = function(self, patternCount)
+      return patternCount > 0 and self.i == #data - (patternCount * 4) - 1
     end
   }
-
-  return obj
 end
 
 function rtrim(s)
@@ -402,22 +407,48 @@ function load_painting_data(data)
   selectedPoints = {}
 
   local reader = create_painting_reader(data)
+  polygons, fillPatterns = parse_painting(reader)
 
-  -- read each polygon
+  -- convert patterns to editing format (i.e. array of 1s and 0s)
+  for i, fillPattern in pairs(fillPatterns) do
+    fillPattern.pattern = convert_pattern_bytes_to_array(fillPattern.pattern)
+  end
+
+  -- add any missing fill-patterns to make a total of 3
+  for i = #fillPatterns, 3 do
+    table.insert(fillPatterns, create_default_fill_pattern())
+  end
+  print(inspect(fillPatterns))
+
+  -- re-render all polygons
+  set_dirty_flag()
+end
+
+function parse_painting(reader)
+  local shapes = {}
+  local fillPatterns = {}
+  local patternCount = 0
+
+  -- read each shape
   repeat
-    local polygon = {
+    local shape = {
       points = {}
     }
 
     -- read the fill-pattern index and point count
     local byte1 = reader:get_next_byte()
-    polygon.patternIndex = bit.rshift(bit.band(byte1, 0b11000000), 6)
+    shape.patternIndex = bit.rshift(bit.band(byte1, 0b11000000), 6)
+    print('shape patternIndex: ' .. shape.patternIndex)
     local pointCount = bit.band(byte1, 0b00111111)
+
+    -- update running pattern count
+    patternCount = math.max(patternCount, shape.patternIndex)
+    assert(patternCount >= 0 and patternCount <= MAX_FILL_PATTERN_INDEX)
 
     -- read the color
     local colorByte = reader:get_next_byte()
-    polygon.color = bit.band(colorByte, 0b00001111)
-    polygon.bgColor = bit.rshift(bit.band(colorByte, 0b11110000), 4)
+    shape.color = bit.band(colorByte, 0b00001111)
+    shape.bgColor = bit.rshift(bit.band(colorByte, 0b11110000), 4)
 
     -- read each point
     for i = 1, pointCount do
@@ -428,14 +459,34 @@ function load_painting_data(data)
       -- actual value to allow for -1 without needing a sign bit
       y = y - 1
 
-      table.insert(polygon.points, {x = x, y = y})
+      table.insert(shape.points, {x = x, y = y})
     end
 
-    table.insert(polygons, polygon)
-  until reader:is_at_end()
+    table.insert(shapes, shape)
+  until reader:is_at_end_of_shapes(patternCount) or reader:is_at_end()
 
-  -- re-render all polygons
-  set_dirty_flag()
+  if patternCount > 0 then
+    for i = 1, patternCount do
+      local byte1 = reader:get_next_byte()
+      local byte2 = reader:get_next_byte()
+      local pattern = bit.bor(bit.lshift(byte1, 8), byte2)
+      table.insert(fillPatterns, {pattern = pattern})
+    end
+    local byte = reader:get_next_byte()
+    for i = 1, patternCount do
+      local b = bit.band(bit.rshift(0b10000000, i - 1))
+      fillPatterns[i].isTransparent = (b == 1 and true or false)
+    end
+  end
+
+  return shapes, fillPatterns
+end
+
+function create_default_fill_pattern()
+  return {
+    pattern = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
+    isTransparent = false
+  }
 end
 
 function set_dirty_flag()
@@ -2278,7 +2329,6 @@ function draw_fill_pattern_selector()
     end
 
     if i == 0 then
-      print(box.x)
       -- Draw a slash to indicate no fill pattern is here
       love.graphics.line(box.x, box.y,
         box.x + box.w - sel.outlineMargin,
