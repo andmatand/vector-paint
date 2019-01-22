@@ -99,6 +99,13 @@ function love.load(arg)
   -- create a table to store positions of palette color boxes in the UI
   paletteBox = {}
 
+  -- create a data structures for storing positions of the fill-pattern
+  -- selector UI
+  fillPatternSelector = {
+    boxes = { [0] = {}, [1] = {}, [2] = {}, [3] = {} },
+    outlineMargin = 2
+  }
+
   fillPatterns = {
     [1] = {
       pattern = {1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1},
@@ -1466,6 +1473,15 @@ function get_color_under_mouse(x, y)
   end
 end
 
+function get_fill_pattern_under_mouse(x, y)
+  for i, box in pairs(fillPatternSelector.boxes) do
+    if x >= box.x and x < box.x + box.w and
+       y >= box.y and y < box.y + box.h then
+      return i
+    end
+  end
+end
+
 -- get a table of all polygons selected or partially selected in any way (i.e.
 -- regardness of whether the the whole polygon is selected, via "select
 -- polygons" tool, or only a point of the polygon is selected, via the "select
@@ -1569,26 +1585,33 @@ function table_has_value(t, value)
 end
 
 function love.mousepressed(x, y, button)
-  if mode ~= MODES.NORMAL then
-    return
-  end
+  if mode == MODES.NORMAL then
+    if button == 1 then
+      if mouseIsOnCanvas then
+        push_primary_button()
+        return
+      end
 
-  if button == 1 then
-    if mouseIsOnCanvas then
-      push_primary_button()
-      return
+      local color = get_color_under_mouse(x, y)
+      if color then
+        set_color(color)
+      end
     end
 
-    local color = get_color_under_mouse(x, y)
-    if color ~= nil then
-      set_color(color)
+    if button == 2 then
+      if mouseIsOnCanvas then
+        push_secondary_button()
+        return
+      end
     end
   end
 
-  if button == 2 then
-    if mouseIsOnCanvas then
-      push_secondary_button()
-      return
+  if mode == MODES.NORMAL or mode == MODES.EDIT_FILL_PATTERN then
+    if button == 1 then
+      local patternIndex = get_fill_pattern_under_mouse(x, y)
+      if patternIndex then
+        set_fill_pattern(patternIndex)
+      end
     end
   end
 end
@@ -2210,14 +2233,33 @@ function render_fill_pattern_swatches()
   love.graphics.setCanvas()
 end
 
+function update_fill_pattern_selector_position()
+  local sel = fillPatternSelector
+
+  sel.x = paletteDisplay.x + (paletteDisplay.colorW * 4) + (canvasScale * 2)
+  sel.y = paletteDisplay.y
+  sel.outlineW = (canvasScale * PATTERN_SWATCH_W) + (sel.outlineMargin * 2)
+  sel.outlineH = (canvasScale * PATTERN_SWATCH_H) + (sel.outlineMargin * 2)
+
+  for i = 0, MAX_FILL_PATTERN_INDEX do
+    local y = sel.y + (i * PATTERN_SWATCH_ROW_H * canvasScale)
+
+    sel.boxes[i].x = sel.x - sel.outlineMargin
+    sel.boxes[i].y = y - sel.outlineMargin
+    sel.boxes[i].w = sel.outlineW
+    sel.boxes[i].h = sel.outlineH
+  end
+end
+
 function draw_fill_pattern_selector()
-  local x = paletteDisplay.x + (paletteDisplay.colorW * 4) + (canvasScale * 2)
-  local y = paletteDisplay.y
+  local sel = fillPatternSelector
 
   love.graphics.push()
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.scale(canvasScale, canvasScale)
-  love.graphics.draw(fillPatternSwatchCanvas, x / canvasScale, y / canvasScale)
+  love.graphics.draw(fillPatternSwatchCanvas,
+    sel.x / canvasScale,
+    sel.y / canvasScale)
   love.graphics.pop()
 
   -- Outline the patterns
@@ -2225,12 +2267,7 @@ function draw_fill_pattern_selector()
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle('rough')
 
-  local outlineMargin = 2
-  local outlineW = (canvasScale * PATTERN_SWATCH_W) + (outlineMargin * 2)
-  local outlineH = (canvasScale * PATTERN_SWATCH_H) + (outlineMargin * 2)
-  for i = 0, MAX_FILL_PATTERN_INDEX do
-    local y2 = y + (i * PATTERN_SWATCH_ROW_H * canvasScale)
-
+  for i, box in pairs(sel.boxes) do
     if i == cursor.patternIndex then
       if mode == MODES.EDIT_FILL_PATTERN then
         love.graphics.setColor(patternSelectionFlash:get_color())
@@ -2242,14 +2279,14 @@ function draw_fill_pattern_selector()
     end
 
     if i == 0 then
+      print(box.x)
       -- Draw a slash to indicate no fill pattern is here
-      love.graphics.line(x - 2, y2 - 2,
-        x + outlineW - outlineMargin,
-        y + outlineH - outlineMargin)
+      love.graphics.line(box.x, box.y,
+        box.x + box.w - sel.outlineMargin,
+        box.y + box.h - sel.outlineMargin)
     end
 
-    love.graphics.rectangle('line',
-      x - outlineMargin, y2 - outlineMargin, outlineW, outlineH)
+    love.graphics.rectangle('line', box.x, box.y, box.w, box.h)
   end
 
   love.graphics.pop()
@@ -2415,6 +2452,7 @@ function love.update()
 
   update_cursor()
   update_palette_display()
+  update_fill_pattern_selector_position()
 end
 
 function love.draw()
