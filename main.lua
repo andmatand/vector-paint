@@ -827,6 +827,9 @@ function love.keypressed(key, scancode)
   if ctrlIsDown and key == 'q' then
     love.event.quit()
   end
+  if key == 'f11' then
+    toggle_fullscreen()
+  end
 
   if mode == MODES.SAVE then
     if key == 'return' then
@@ -1016,10 +1019,6 @@ function love.keypressed(key, scancode)
 
   if key == 'left' or key == 'right' or key == 'up' or key == 'down' then
     push_direction(key)
-  end
-
-  if key == 'f11' then
-    toggle_fullscreen()
   end
 
   if key == '1' then
