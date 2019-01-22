@@ -234,9 +234,6 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
 
     -- update shapes' pattern indexes
     for _, shape in pairs(shapes) do
-      print('changing shape pattern index ' .. shape.patternIndex .. 'to' ..
-        patternIndexTranslationTable[shape.patternIndex]
-      )
       shape.patternIndex = patternIndexTranslationTable[shape.patternIndex]
     end
   end
@@ -437,7 +434,6 @@ function parse_painting(reader)
     -- read the fill-pattern index and point count
     local byte1 = reader:get_next_byte()
     shape.patternIndex = bit.rshift(bit.band(byte1, 0b11000000), 6)
-    print('shape patternIndex: ' .. shape.patternIndex)
     local pointCount = bit.band(byte1, 0b00111111)
 
     -- update running pattern count
