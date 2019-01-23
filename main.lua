@@ -895,6 +895,10 @@ function love.keypressed(key, scancode)
     return
   end
 
+  if ctrlIsDown and shiftIsDown and key == 'c' then
+    love.system.setClipboardText(get_painting_data())
+  end
+
   -- allow certain commands during EDIT_FILL_PATTERN mode
   if not ctrlIsDown then
     if key == '9' then

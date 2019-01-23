@@ -114,9 +114,12 @@ directory.
 
 #### Other Global Keys
 * Ctrl/Command + S: **S**ave
-* Ctrl/Command + N: **N**ew Painting (clears all shapes, is undo-able)
 * Ctrl/Command + Q: **Q**uit
+* Ctrl/Command + N: **N**ew Painting (clears all shapes, is undo-able)
 * Ctrl/Command + F: enter **F**ill-Pattern Editor Mode (See section below)
+* Ctrl/Command + Shift + C: Copy painting data to the OS clipboard
+  * Use this if you just want the data without having to go find where the file
+    was saved :p
 * F11: Toggle fullscreen/windowed mode
 * 1/2: Select the previous/next color in the palette
 * 9/0: Select the previous/next fill-pattern
