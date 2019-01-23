@@ -1644,12 +1644,15 @@ function love.mousepressed(x, y, button)
       if color then
         set_color(color)
       end
-    end
-
-    if button == 2 then
+    elseif button == 2 then
       if mouseIsOnCanvas then
         push_secondary_button()
         return
+      end
+
+      local color = get_color_under_mouse(x, y)
+      if color then
+        set_bg_color(color)
       end
     end
   end
