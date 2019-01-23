@@ -225,16 +225,17 @@ function optimize_unused_fill_patterns(shapes, fillPatterns)
     return a.oldIndex < b.oldIndex
   end)
 
-  local patternIndexTranslationTable = {}
   if #usedFillPatterns > 0 then
-    -- create a lookup table
+    local patternIndexTranslationTable = {}
     for i, pattern in pairs(usedFillPatterns) do
       patternIndexTranslationTable[pattern.oldIndex] = i
     end
 
     -- update shapes' pattern indexes
     for _, shape in pairs(shapes) do
-      shape.patternIndex = patternIndexTranslationTable[shape.patternIndex]
+      if shape.patternIndex > 0 then
+        shape.patternIndex = patternIndexTranslationTable[shape.patternIndex]
+      end
     end
   end
 
@@ -249,9 +250,7 @@ function get_painting_data()
   local usedFillPatterns = optimize_unused_fill_patterns(shapes, fillPatterns)
 
   -- add each shape
-  for i = 1, #shapes do
-    local shape = shapes[i]
-
+  for _, shape in ipairs(shapes) do
     assert(shape.patternIndex <= MAX_FILL_PATTERN_INDEX)
     assert(#shape.points <= MAX_POLYGON_POINTS)
 
@@ -2064,7 +2063,7 @@ function draw_status()
         y = y + lineh
       end
 
-      if selectedPolys[1].color then
+      if shape.color then
         local colorTxt = {
           {1, 1, 1}, '  color: ',
           palette[shape.color], shape.color,
@@ -2076,6 +2075,9 @@ function draw_status()
         end
 
         love.graphics.print(colorTxt, x, y)
+        y = y + lineh
+
+        love.graphics.print('  pattern index: ' .. shape.patternIndex, x, y)
         y = y + lineh
       end
 
