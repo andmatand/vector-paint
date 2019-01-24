@@ -1900,7 +1900,7 @@ function draw_tool()
 
   -- draw a overlay on the polygon we are hovering over
   if cursor.hoveredPolygon then
-    draw_shape(cursor.hoveredPolygon, hoverFlash:get_color())
+    draw_shape(cursor.hoveredPolygon, hoverFlash:get_color(), true)
   end
 
   -- draw a rectangle around the point we are hovering over
