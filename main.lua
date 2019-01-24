@@ -369,12 +369,16 @@ function create_painting_reader(data)
       return byte
     end,
 
-    is_at_end = function(self)
+    eof = function(self)
       return (self.i > #data)
     end,
 
-    is_at_end_of_shapes = function(self, patternCount)
-      return patternCount > 0 and self.i == #data - (patternCount * 4) - 1
+    end_of_shapes = function(self, patternCount)
+      if patternCount > 0 then
+        return self.i == #data - (patternCount * 4) - 1
+      else
+        return self:eof()
+      end
     end
   }
 end
@@ -457,7 +461,7 @@ function parse_painting(reader)
     end
 
     table.insert(shapes, shape)
-  until reader:is_at_end_of_shapes(patternCount) or reader:is_at_end()
+  until reader:end_of_shapes(patternCount)
 
   if patternCount > 0 then
     for i = 1, patternCount do
@@ -1667,35 +1671,37 @@ function table_has_value(t, value)
 end
 
 function love.mousepressed(x, y, button)
-  if mode == MODES.NORMAL then
+  -- handle clicks on canvas
+  if mode == MODES.NORMAL and mouseIsOnCanvas then
     if button == 1 then
-      if mouseIsOnCanvas then
-        push_primary_button()
-        return
-      end
-
-      local color = get_color_under_mouse(x, y)
-      if color then
-        set_color(color)
-      end
+      push_primary_button()
     elseif button == 2 then
-      if mouseIsOnCanvas then
-        push_secondary_button()
-        return
-      end
+      push_secondary_button()
+    end
+  end
 
-      local color = get_color_under_mouse(x, y)
-      if color then
+  -- handle clicks on palette
+  if mode == MODES.NORMAL or mode == MODES.EDIT_FILL_PATTERN then
+    local color = get_color_under_mouse(x, y)
+    if color then
+      if button == 1 then
+        set_color(color)
+      elseif button == 2 then
         set_bg_color(color)
       end
     end
   end
 
+  -- handle clicks on pattern selector
   if mode == MODES.NORMAL or mode == MODES.EDIT_FILL_PATTERN then
-    if button == 1 then
+    if button == 1 or button == 2 then
       local patternIndex = get_fill_pattern_under_mouse(x, y)
       if patternIndex then
         set_fill_pattern(patternIndex)
+
+        if button == 2 then
+          mode = MODES.EDIT_FILL_PATTERN
+        end
       end
     end
   end

@@ -148,6 +148,21 @@ directory.
 * Space
 * z
 
+#### Palette
+* Left-Click on a color to select it as the primary color
+* Right-Click on a color to select it as the secondary color (used only for
+  fill-patterns)
+* If any shapes are selected, selecting a color will change the color of all
+  selected shapes
+
+#### Fill-Pattern Selector (to the right of the palette)
+* Left-Click on a fill-pattern swatch to select it
+* Right-Click on a fill-pattern swatch to enter Fill-Pattern Edit Mode with
+  that fill-pattern selected
+* If any shapes are selected, selecting a fill-pattern will change the
+  fill-pattern of all selected shapes
+* The crossed out top-most choice indicates "no fill pattern"
+
 #### "Draw" Tool
 * Action Button: Place a point under the cursor
 * Enter or Right-Click: Finalize the shape which is currently being drawn
