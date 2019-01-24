@@ -3,9 +3,21 @@ version 8
 __lua__
 
 function _init()
+  -- step 1: store data somewhere in cart rom.
+  -- do this in your build process, e.g. in a separate build-cart, not in your
+  -- distributable cart
   local data = '05090a1c291830481c451e2f06080c2f26252a4012361c520c51'
-  local reader = create_painting_str_reader(data)
-  shapes = parse_painting(reader)
+  local len = #data / 2
+  local addr = 0x1000 -- bottom half of gfx/map
+  store_painting(data, addr)
+  -- permanently store to dist cart
+  --cstore(addr, addr, length, 'game.p8')
+
+  -- step 2: read the previously stored data
+  -- include this (and library code in tab 1) in your dist cart.
+  -- address and length must be known.
+  local reader = new_painting_reader(addr, len)
+  shapes, patterns = parse_painting(reader)
 end
 
 function _draw()
@@ -17,9 +29,13 @@ function _draw()
   end
 end
 
+-->8
+-- vector-paint dist library
+
 function draw_shape(shape)
   local points = shape.points
-  color(shape.color)
+  color(shape.col)
+  fillp(patterns[shape.pi])
 
   if #points == 1 then
     pset(points[1].x, points[1].y)
@@ -77,7 +93,7 @@ function fill_polygon(p)
       local x1 = flr(xlist[i])
       local x2 = ceil(xlist[i + 1])
 
-      line(x1, y, x2, y, p.color)
+      line(x1, y, x2, y, p.col)
     end
   end
 end
@@ -92,8 +108,7 @@ function sort(t)
   end
 end
 
--- use this version if your data is stored in base ram memory somewhere
-function create_painting_reader(addr, len)
+function new_painting_reader(addr, len)
   return {
     offset = 0,
     addr = addr,
@@ -107,30 +122,22 @@ function create_painting_reader(addr, len)
 
     eof = function(self)
       return self.offset >= self.len
-    end
-  }
-end
-
--- use this version if your data is stored in a string
-function create_painting_str_reader(data)
-  return {
-    i = 1,
-    data = data,
-
-    get_next_byte = function(self)
-      local byte = ('0x' .. sub(self.data, self.i, self.i + 1)) + 0
-      self.i = self.i + 2
-      return byte
     end,
 
-    eof = function(self)
-      return self.i > #data
+    end_of_shapes = function(self, patterncount)
+      if patterncount > 0 then
+        return self.offset == self.len - (patterncount * 2) - 1
+      else
+        return self:eof()
+      end
     end
   }
 end
 
 function parse_painting(reader)
   local shapes = {}
+  local patterns = {}
+  local maxpat = 0
 
   -- read each shape
   repeat
@@ -138,28 +145,58 @@ function parse_painting(reader)
       points = {}
     }
 
-    -- read the point count
-    local pointcount = reader:get_next_byte()
+    -- read the fill-pattern index and point count
+    local b1 = reader:get_next_byte()
+    shape.pi = shr(band(b1, 0b11000000), 6)
+    local pointcount = band(b1, 0b00111111)
+
+    -- update running pattern count
+    maxpat = max(maxpat, shape.pi)
 
     -- read the color
-    shape.color = reader:get_next_byte()
+    shape.col = reader:get_next_byte()
 
     -- read each point
     for i = 1, pointcount do
       local x = reader:get_next_byte()
-      local y = reader:get_next_byte()
-
-      -- adjust y back to its actual value since it is saved 1 higher than its
-      -- actual value to allow for -1 without needing a sign bit
-      y = y - 1
-
+      local y = reader:get_next_byte() - 1
       add(shape.points, {x = x, y = y})
     end
 
     add(shapes, shape)
-  until reader:eof()
+  until reader:end_of_shapes(maxpat)
 
-  return shapes
+  if maxpat > 0 then
+    for i = 1, maxpat do
+      local b1 = reader:get_next_byte()
+      local b2 = reader:get_next_byte()
+      local pattern = bor(shl(b1, 8), b2)
+      add(patterns, pattern)
+    end
+    local tb = reader:get_next_byte()
+    for i = 1, maxpat do
+      local mask = shr(0b10000000, i - 1)
+      if band(tb, mask) > 0 then
+        patterns[i] += 0x0.8
+      end
+    end
+  end
+
+  return shapes, patterns
+end
+
+-->8
+-- vector-paint build-only function
+
+function store_painting(hexstr, dest)
+  local i = 1
+
+  while i <= #hexstr do
+    local byte = ('0x' .. sub(hexstr, i, i + 1)) + 0
+    i = i + 2
+    poke(dest, byte)
+    dest += 1
+  end
 end
 
 __gfx__
