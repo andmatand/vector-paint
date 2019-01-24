@@ -103,6 +103,10 @@ directory.
 * d: **D**raw
 * p: Select **P**oints (hold shift while clicking to select multiple points)
 * s: Select **S**hapes (hold shift while clicking to select multiple shapes)
+  * Shortcuts (even when using a different tool):
+    * Hold Shift to enable hovering; click to select a shape
+    * Press Tab to select the previous selection (currently doesn't work if
+      you've used Undo since then)
 * c: Change **C**olor of selected shape(s)
   * This includes secondary color (used only by fill-patterns)
 * f: Change **F**ill-Pattern index of selected shape(s)
@@ -113,11 +117,11 @@ directory.
 * b: Adjust **B**ackground Image
 
 #### Other Global Keys
-* Ctrl/Command + S: **S**ave
-* Ctrl/Command + Q: **Q**uit
-* Ctrl/Command + N: **N**ew Painting (clears all shapes, is undo-able)
-* Ctrl/Command + F: enter **F**ill-Pattern Editor Mode (See section below)
-* Ctrl/Command + Shift + C: Copy painting data to the OS clipboard
+* Ctrl/Command + s: **S**ave
+* Ctrl/Command + q: **Q**uit
+* Ctrl/Command + n: **N**ew Painting (clears all shapes, is undo-able)
+* Ctrl/Command + f: enter **F**ill-Pattern Editor Mode (See section below)
+* Ctrl/Command + Shift + c: Copy painting data to the OS clipboard
   * Use this if you just want the data without having to go find where the file
     was saved :p
 * F11: Toggle fullscreen/windowed mode

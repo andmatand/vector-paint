@@ -567,7 +567,7 @@ function update_cursor()
   cursor.hoveredPoint = nil
 
   if cursor.isVisible then
-    if cursor.tool == TOOLS.SELECT_SHAPE then
+    if cursor.tool == TOOLS.SELECT_SHAPE or shift_is_down() then
       -- find the top polygon under the cursor
       local topPoly = find_top_poly(cursor)
       if topPoly then
@@ -700,6 +700,10 @@ function set_selected_shapes(shapes)
   selectedShapes = shapes
   selectedPoints = {}
   selectionFlash:reset()
+
+  if #shapes > 0 then
+    oldSelectedShapes = shapes
+  end
 end
 
 function set_selected_points(pointRefs)
@@ -866,7 +870,7 @@ function set_mouse_only_mode(enabled)
 end
 
 function love.keypressed(key, scancode)
-  local shiftIsDown = love.keyboard.isDown('lshift', 'rshift')
+  local shiftIsDown = shift_is_down()
   local ctrlIsDown = ctrl_is_down()
 
   if ctrlIsDown and key == 'q' then
@@ -1112,14 +1116,29 @@ function love.keypressed(key, scancode)
   end
 
   if key == 'tab' then
-    if cursor.tool == TOOLS.SELECT_SHAPE or
-       (cursor.tool ~= TOOLS.SELECT_POINT and #selectedShapes > 0) then
+    if cursor.tool ~= TOOLS.SELECT_POINT then
       if #selectedShapes == 0 then
         if #selectedPoints == 1 then
           local poly = selectedPoints[1].poly
           set_selected_shapes({poly})
         else
-          set_selected_shapes({polygons[1]})
+          local oldSelectionIsValid = false
+
+          if oldSelectedShapes then
+            oldSelectionIsValid = true
+            for _, oldShape in pairs(oldSelectedShapes) do
+              if not find_polygon_index(oldShape) then
+                oldSelectionIsValid = false
+                break
+              end
+            end
+          end
+
+          if oldSelectionIsValid then
+            set_selected_shapes(oldSelectedShapes)
+          else
+            set_selected_shapes({polygons[1]})
+          end
         end
       elseif #selectedShapes == 1 then
         local index = find_polygon_index(selectedShapes[1])
@@ -1380,27 +1399,33 @@ function push_direction(key)
   end
 end
 
+function shift_is_down()
+  return love.keyboard.isDown('lshift', 'rshift')
+end
+
 function push_primary_button()
   if not cursor.isVisible then
     return
   end
 
-  local shiftIsDown = love.keyboard.isDown('lshift', 'rshift')
+  local shiftIsDown = shift_is_down()
 
-  if cursor.tool == TOOLS.DRAW then
-    draw_point()
-  elseif cursor.tool == TOOLS.SELECT_SHAPE then
+  if cursor.tool == TOOLS.SELECT_SHAPE or shiftIsDown then
     if cursor.hoveredPolygon then
-      if shiftIsDown then
+      if shiftIsDown and #selectedShapes > 0 then
         -- look for this shape in the selectedShapes table
         local existingIndex = table_has_value(selectedShapes,
           cursor.hoveredPolygon)
 
         -- If this shape is already in the selectedShapes table
         if existingIndex then
-          table.remove(selectedShapes, existingIndex)
+          local newSelectedShapes = shallow_copy_table(selectedShapes)
+          table.remove(newSelectedShapes, existingIndex)
+          set_selected_shapes(newSelectedShapes)
         else
-          table.insert(selectedShapes, cursor.hoveredPolygon)
+          local newSelectedShapes = shallow_copy_table(selectedShapes)
+          table.insert(newSelectedShapes, cursor.hoveredPolygon)
+          set_selected_shapes(newSelectedShapes)
         end
       else
         set_selected_shapes({cursor.hoveredPolygon})
@@ -1408,6 +1433,8 @@ function push_primary_button()
     elseif not shiftIsDown then
       set_selected_shapes({})
     end
+  elseif cursor.tool == TOOLS.DRAW then
+    draw_point()
   elseif cursor.tool == TOOLS.SELECT_POINT then
     if cursor.hoveredPoint then
       if shiftIsDown then
