@@ -3,8 +3,9 @@ version 8
 __lua__
 
 function _init()
-  local sampledata = '05090a1c291830481c451e2f06080c2f26252a4012361c520c51'
-  shapes = parse_painting(sampledata)
+  local data = '05090a1c291830481c451e2f06080c2f26252a4012361c520c51'
+  local reader = create_painting_str_reader(data)
+  shapes = parse_painting(reader)
 end
 
 function _draw()
@@ -64,15 +65,11 @@ function find_intersections(points, y)
   return xlist
 end
 
-function fill_polygon(poly)
-  color(poly.color)
-
-  -- find the bounds of the polygon
-  local x1, x2, y1, y2 = find_bounds(poly.points)
+function fill_polygon(p)
+  local x1, x2, y1, y2 = find_bounds(p.points)
 
   for y = y2, y1, -1 do
-    -- find intersecting nodes
-    local xlist = find_intersections(poly.points, y)
+    local xlist = find_intersections(p.points, y)
     sort(xlist)
 
     -- draw the scanline
@@ -80,7 +77,7 @@ function fill_polygon(poly)
       local x1 = flr(xlist[i])
       local x2 = ceil(xlist[i + 1])
 
-      line(x1, y, x2, y)
+      line(x1, y, x2, y, p.color)
     end
   end
 end
@@ -95,7 +92,27 @@ function sort(t)
   end
 end
 
-function create_painting_reader(data)
+-- use this version if your data is stored in base ram memory somewhere
+function create_painting_reader(addr, len)
+  return {
+    offset = 0,
+    addr = addr,
+    len = len,
+
+    get_next_byte = function(self)
+      local byte = peek(self.addr + self.offset)
+      self.offset += 1
+      return byte
+    end,
+
+    eof = function(self)
+      return self.offset >= self.len
+    end
+  }
+end
+
+-- use this version if your data is stored in a string
+function create_painting_str_reader(data)
   return {
     i = 1,
     data = data,
@@ -106,21 +123,16 @@ function create_painting_reader(data)
       return byte
     end,
 
-    is_at_end = function(self)
-      return (self.i > #data)
+    eof = function(self)
+      return self.i > #data
     end
   }
 end
 
-function parse_painting(data)
-  if data == nil or #data == 0 then
-    return nil
-  end
-
+function parse_painting(reader)
   local shapes = {}
 
   -- read each shape
-  local reader = create_painting_reader(data)
   repeat
     local shape = {
       points = {}
@@ -145,7 +157,7 @@ function parse_painting(data)
     end
 
     add(shapes, shape)
-  until reader:is_at_end()
+  until reader:eof()
 
   return shapes
 end
