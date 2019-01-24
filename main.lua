@@ -1562,7 +1562,7 @@ function set_color(color)
 end
 
 function update_color_change_tool()
-  if cursor.tool ~= TOOLS.CHANGE_COLOR then
+  if not (cursor.tool == TOOLS.CHANGE_COLOR or #selectedShapes > 0) then
     return
   end
 
@@ -1596,7 +1596,7 @@ function set_fill_pattern(index)
 end
 
 function update_fill_pattern_change_tool()
-  if cursor.tool ~= TOOLS.CHANGE_FILL_PATTERN then
+  if not (cursor.tool == TOOLS.CHANGE_FILL_PATTERN or #selectedShapes > 0) then
     return
   end
 

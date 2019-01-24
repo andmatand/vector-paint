@@ -159,6 +159,8 @@ directory.
   * The pasted shapes are positioned so that the top-left point is under the
     cursor (or at the top-left corner of the canvas if the cursor is not on the
     canvas)
+* Select a color or fill-pattern to replace the color or fill-pattern of all
+  selected shapes
 ###### Scaling (will result in shape distortion because of integer rounding)
 * -: scale down 
 * +: scale up
