@@ -1906,7 +1906,7 @@ end
 
 function pset(x, y, color, bgColor, fillPattern)
   local bit = get_pattern_bit(fillPattern.pattern, x, y)
-  if bit == 1 then
+  if bit == 0 then
     love.graphics.setColor(palette[color])
     love.graphics.points(x + 0.5, y + 0.5)
   elseif not fillPattern.isTransparent then
