@@ -291,7 +291,7 @@ function get_painting_data()
     for i, fillPattern in ipairs(usedFillPatterns) do
       if fillPattern.isTransparent then
         local newBit = bit.rshift(0b10000000, i - 1)
-        transparencyByte = bit.band(transparencyByte, newBit)
+        transparencyByte = bit.bor(transparencyByte, newBit)
       end
     end
     table.insert(bytes, transparencyByte)
@@ -472,8 +472,9 @@ function parse_painting(reader)
     end
     local byte = reader:get_next_byte()
     for i = 1, patternCount do
-      local b = bit.band(bit.rshift(0b10000000, i - 1))
-      fillPatterns[i].isTransparent = (b == 1 and true or false)
+      local mask = bit.rshift(0b10000000, i - 1)
+      local b = bit.band(byte, mask)
+      fillPatterns[i].isTransparent = (b > 0 and true or false)
     end
   end
 
