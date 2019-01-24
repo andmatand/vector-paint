@@ -565,9 +565,14 @@ function update_cursor()
 
   cursor.hoveredPolygon = nil
   cursor.hoveredPoint = nil
+  cursor.isQuickSelecting = false
 
   if cursor.isVisible then
-    if cursor.tool == TOOLS.SELECT_SHAPE or shift_is_down() then
+    if cursor.tool ~= TOOLS.SELECT_SHAPE and shift_is_down() then
+      cursor.isQuickSelecting = true
+    end
+
+    if cursor.tool == TOOLS.SELECT_SHAPE or cursor.isQuickSelecting then
       -- find the top polygon under the cursor
       local topPoly = find_top_poly(cursor)
       if topPoly then
@@ -973,41 +978,41 @@ function love.keypressed(key, scancode)
       mode = MODES.EDIT_FILL_PATTERN
       return
     end
-  elseif not shiftIsDown then
-    -- switch tools
-    if key == 'd' then
-      cursor.tool = TOOLS.DRAW
-      set_selected_shapes({})
-      set_selected_points({})
-    elseif key == 's' then
-      cursor.tool = TOOLS.SELECT_SHAPE
-    elseif key == 'p' then
-      cursor.tool = TOOLS.SELECT_POINT
-    elseif key == 'm' then
-      cursor.tool = TOOLS.MOVE
-    elseif key == 'c' then
-      cursor.tool = TOOLS.CHANGE_COLOR
-      update_color_change_tool()
-    elseif key == 'f' then
-      cursor.tool = TOOLS.CHANGE_FILL_PATTERN
-      update_fill_pattern_change_tool()
-    elseif key == 'b' then
-      cursor.tool = TOOLS.BG_IMAGE
-    end
-
-    if tool ~= TOOLS.BG_IMAGE and #selectedShapes > 0 then
-      local scaleDelta = .2
-      if key == '-' or key == '_' then
-        save_undo_state()
-        scale_shapes(selectedShapes, 1 - scaleDelta)
-      elseif key == '+' or key == '=' then
-        save_undo_state()
-        scale_shapes(selectedShapes, 1 + scaleDelta)
+  else
+    if not shiftIsDown then
+      -- switch tools
+      if key == 'd' then
+        cursor.tool = TOOLS.DRAW
+      elseif key == 's' then
+        cursor.tool = TOOLS.SELECT_SHAPE
+      elseif key == 'p' then
+        cursor.tool = TOOLS.SELECT_POINT
+      elseif key == 'm' then
+        cursor.tool = TOOLS.MOVE
+      elseif key == 'c' then
+        cursor.tool = TOOLS.CHANGE_COLOR
+        update_color_change_tool()
+      elseif key == 'f' then
+        cursor.tool = TOOLS.CHANGE_FILL_PATTERN
+        update_fill_pattern_change_tool()
+      elseif key == 'b' then
+        cursor.tool = TOOLS.BG_IMAGE
       end
-    end
 
-    if key == 'k' then
-      set_mouse_only_mode(not mouseOnlyMode)
+      if tool ~= TOOLS.BG_IMAGE and #selectedShapes > 0 then
+        local scaleDelta = .2
+        if key == '-' or key == '_' then
+          save_undo_state()
+          scale_shapes(selectedShapes, 1 - scaleDelta)
+        elseif key == '+' or key == '=' then
+          save_undo_state()
+          scale_shapes(selectedShapes, 1 + scaleDelta)
+        end
+      end
+
+      if key == 'k' then
+        set_mouse_only_mode(not mouseOnlyMode)
+      end
     end
 
     if key == 'z' or key == 'space' then
@@ -1158,6 +1163,8 @@ function love.keypressed(key, scancode)
 
           set_selected_shapes({polygons[nextIndex]})
         end
+      elseif #selectedShapes > 1 then
+        set_selected_shapes({selectedShapes[1]})
       end
     end
 
@@ -1410,7 +1417,7 @@ function push_primary_button()
 
   local shiftIsDown = shift_is_down()
 
-  if cursor.tool == TOOLS.SELECT_SHAPE or shiftIsDown then
+  if cursor.tool == TOOLS.SELECT_SHAPE or cursor.isQuickSelecting then
     if cursor.hoveredPolygon then
       if shiftIsDown and #selectedShapes > 0 then
         -- look for this shape in the selectedShapes table
@@ -1430,7 +1437,7 @@ function push_primary_button()
       else
         set_selected_shapes({cursor.hoveredPolygon})
       end
-    elseif not shiftIsDown then
+    elseif not shiftIsDown or cursor.isQuickSelecting then
       set_selected_shapes({})
     end
   elseif cursor.tool == TOOLS.DRAW then
@@ -2107,7 +2114,8 @@ function draw_status()
         love.graphics.print(colorTxt, x, y)
         y = y + lineh
 
-        love.graphics.print('  pattern index: ' .. shape.patternIndex, x, y)
+        love.graphics.print('  fill-pattern index: ' .. shape.patternIndex,
+          x, y)
         y = y + lineh
       end
 
@@ -2214,10 +2222,25 @@ function draw_cursor()
     {centerX, centerY + 1},
   }
 
+  if cursor.tool == TOOLS.DRAW and not cursor.isQuickSelecting then
+    local pencilPoints = {
+      {centerX + 2, centerY - 2},
+      {centerX + 2, centerY - 3},
+      {centerX + 3, centerY - 2},
+    }
+    add_all(points, pencilPoints)
+  end
+
   love.graphics.setColor(cursor.flash:get_color())
   love.graphics.points(points)
 
   love.graphics.pop()
+end
+
+function add_all(t, values)
+  for _, v in ipairs(values) do
+    table.insert(t, v)
+  end
 end
 
 function draw_point()
