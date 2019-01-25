@@ -6,7 +6,7 @@ function _init()
   -- step 1: store data somewhere in cart rom.
   -- do this in your build process, e.g. in a separate build-cart, not in your
   -- distributable cart
-  local data = '05090a1c291830481c451e2f06080c2f26252a4012361c520c51'
+  local data = '8cf438061c0a091b05330a4d245f4165645973417125600e45054c9a390c1f0f0f1e0d331049285b415f5f556d4169275d12430c4782221d1e1f1c25202b292c30252b1e4782203a1c3f1f472b4832412f3a293747823d463948374e3b5444554b4e46474782553651384f3e53445c45633e5e3747824b164718451e49245225591e541747823f2b3b2d39333d39463a4d33482cefbfa5a500'
   local len = #data / 2
   local addr = 0x1000 -- bottom half of gfx/map
   store_painting(data, addr)
@@ -30,7 +30,7 @@ function _init()
 end
 
 function _draw()
-  print('voila!', 52, 100, 7)
+  print('voila!', 52, 110, 7)
 end
 
 function store_painting(hexstr, dest)
