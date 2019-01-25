@@ -18,14 +18,29 @@ function _init()
   -- address and length must be known.
   local reader = new_painting_reader(addr, len)
   shapes, patterns = parse_painting(reader)
+
+  -- draw all the shapes
+  -- with complex paintings, this is usually too slow to do every frame, so
+  -- you'll want to draw it once and not use cls() in your _draw() function or
+  -- cache the painting somehow
+  cls()
+  for shape in all(shapes) do
+    draw_shape(shape)
+  end
 end
 
 function _draw()
-  cls()
+  print('voila!', 52, 100, 7)
+end
 
-  -- draw all the shapes
-  for shape in all(shapes) do
-    draw_shape(shape)
+function store_painting(hexstr, dest)
+  local i = 1
+
+  while i <= #hexstr do
+    local byte = ('0x' .. sub(hexstr, i, i + 1)) + 0
+    i = i + 2
+    poke(dest, byte)
+    dest += 1
   end
 end
 
@@ -183,20 +198,6 @@ function parse_painting(reader)
   end
 
   return shapes, patterns
-end
-
--->8
--- vector-paint build-only function
-
-function store_painting(hexstr, dest)
-  local i = 1
-
-  while i <= #hexstr do
-    local byte = ('0x' .. sub(hexstr, i, i + 1)) + 0
-    i = i + 2
-    poke(dest, byte)
-    dest += 1
-  end
 end
 
 __gfx__
