@@ -2337,7 +2337,8 @@ function draw_cursor()
     {centerX, centerY + 1},
   }
 
-  if cursor.tool == TOOLS.DRAW and not cursor.isQuickSelecting then
+  if mode == MODES.NORMAL and cursor.tool == TOOLS.DRAW
+     and not cursor.isQuickSelecting then
     local pencilPoints = {
       {centerX + 2, centerY - 2},
       {centerX + 2, centerY - 3},
