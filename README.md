@@ -104,7 +104,9 @@ directory.
 * p: Select **P**oints (hold shift while clicking to select multiple points)
 * s: Select **S**hapes (hold shift while clicking to select multiple shapes)
   * Shortcuts (even when using a different tool):
-    * Hold Shift to enable hovering; click to select a shape
+    * Hold Shift to enable quick select mode, which allows the following:
+      * click to add/remove shapes to/from the selection
+      * click and drag to create a selection rectangle
     * Press Tab to select the previous selection (currently doesn't work if
       you've used Undo since then)
 * c: Change **C**olor of selected shape(s)
@@ -169,6 +171,8 @@ directory.
 
 #### "Select Shape(s)"/"Select Point(s)" Tool
 * Action Button: Select the polygon under the cursor
+* Click and drag: Create a selection rectangle (every shape with a point inside
+  will be selected)
 * Tab: Select next shape/point
 * Shift Tab: Select previous shape/point
 * Delete or Backspace: Delete whatever is selected
