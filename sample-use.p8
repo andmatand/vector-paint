@@ -22,7 +22,7 @@ function _init()
   -- draw all the shapes
   -- with complex paintings, this is usually too slow to do every frame, so
   -- you'll want to draw it once and not use cls() in your _draw() function or
-  -- cache the painting somehow
+  -- cache the image somehow
   cls()
   for shape in all(shapes) do
     draw_shape(shape)
@@ -30,7 +30,7 @@ function _init()
 end
 
 function _draw()
-  print('voila!', 52, 110, 7)
+  print('pizza!', 52, 110, 7)
 end
 
 function store_painting(hexstr, dest)
