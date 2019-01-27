@@ -573,7 +573,8 @@ function update_cursor()
   cursor.isQuickSelecting = false
 
   if cursor.isVisible then
-    if cursor.tool ~= TOOLS.SELECT_SHAPE and shift_is_down() then
+    if cursor.tool ~= TOOLS.SELECT_SHAPE and cursor.tool ~= TOOLS.SELECT_POINT
+       and shift_is_down() then
       cursor.isQuickSelecting = true
     end
 
@@ -594,6 +595,52 @@ function update_cursor()
         cursor.hoveredPoly = poly
       end
     end
+
+    -- handle dragging
+    if cursor.dragStart and distance(cursor, cursor.dragStart) > 2 then
+      cursor.dragRect = {
+        x1 = math.min(cursor.dragStart.x, cursor.x),
+        y1 = math.min(cursor.dragStart.y, cursor.y),
+        x2 = math.max(cursor.dragStart.x, cursor.x),
+        y2 = math.max(cursor.dragStart.y, cursor.y)
+      }
+    else
+      cursor.dragRect = nil
+    end
+
+    if cursor.dragRect then
+      local targetShapes = find_shapes_in_rect(cursor.dragRect)
+      if shift_is_down() and not cursor.isQuickSelecting then
+        for _, shape in ipairs(targetShapes) do
+          add_shape_to_selection(shape)
+        end
+      else
+        set_selected_shapes(targetShapes)
+      end
+    end
+  end
+end
+
+-- returns all shapes that overlap with the given rect
+function find_shapes_in_rect(rect)
+  local foundShapes = {}
+
+  for _, shape in ipairs(polygons) do
+    for _, p in pairs(shape.points) do
+      if point_rect_overlap(p, rect) then
+        table.insert(foundShapes, shape)
+        break
+      end
+    end
+  end
+
+  return foundShapes
+end
+
+function point_rect_overlap(point, rect)
+  if point.x >= rect.x1 and point.x <= rect.x2 and
+     point.y >= rect.y1 and point.y <= rect.y2 then
+    return true
   end
 end
 
@@ -1234,6 +1281,12 @@ function love.keypressed(key, scancode)
   end
 end
 
+function love.keyreleased(key, scancode)
+  if key == 'z' or key == 'space' then
+    release_primary_button()
+  end
+end
+
 function mid(min, n, max)
   return math.min(math.max(min, n), max)
 end
@@ -1423,22 +1476,14 @@ function push_primary_button()
   local shiftIsDown = shift_is_down()
 
   if cursor.tool == TOOLS.SELECT_SHAPE or cursor.isQuickSelecting then
+    cursor.dragStart = {
+      x = cursor.x,
+      y = cursor.y
+    }
+
     if cursor.hoveredPolygon then
       if shiftIsDown and #selectedShapes > 0 then
-        -- look for this shape in the selectedShapes table
-        local existingIndex = table_has_value(selectedShapes,
-          cursor.hoveredPolygon)
-
-        -- If this shape is already in the selectedShapes table
-        if existingIndex then
-          local newSelectedShapes = shallow_copy_table(selectedShapes)
-          table.remove(newSelectedShapes, existingIndex)
-          set_selected_shapes(newSelectedShapes)
-        else
-          local newSelectedShapes = shallow_copy_table(selectedShapes)
-          table.insert(newSelectedShapes, cursor.hoveredPolygon)
-          set_selected_shapes(newSelectedShapes)
-        end
+        add_shape_to_selection(cursor.hoveredPolygon, true)
       else
         set_selected_shapes({cursor.hoveredPolygon})
       end
@@ -1484,6 +1529,24 @@ function push_secondary_button()
   end
 end
 
+function add_shape_to_selection(shape, toggleExisting)
+  -- look for this shape in the selectedShapes table
+  local existingIndex = table_has_value(selectedShapes, shape)
+
+  -- If this shape is already in the selectedShapes table
+  if existingIndex then
+    if toggleExisting then
+      local newSelectedShapes = shallow_copy_table(selectedShapes)
+      table.remove(newSelectedShapes, existingIndex)
+      set_selected_shapes(newSelectedShapes)
+    end
+  else
+    local newSelectedShapes = shallow_copy_table(selectedShapes)
+    table.insert(newSelectedShapes, shape)
+    set_selected_shapes(newSelectedShapes)
+  end
+end
+
 function remove_point_from_table(point, t)
   local t2 = {}
   for i = 1, #t do
@@ -1523,7 +1586,7 @@ function love.mousemoved(x, y)
   x = (x / canvasScale) - canvasPos.x
   y = (y / canvasScale) - canvasPos.y
 
-  -- lock the coordinates to the canvas pixel grid
+  -- snap the coordinates to the canvas pixel grid
   x = math.floor(x)
   y = math.floor(y)
 
@@ -1708,6 +1771,17 @@ function love.mousepressed(x, y, button)
   end
 end
 
+function love.mousereleased(x, y, button)
+  if button == 1 then
+    release_primary_button()
+  end
+end
+
+function release_primary_button()
+  cursor.dragStart = nil
+  cursor.dragRect = nil
+end
+
 function finalize_drawing_points()
   if #drawingPoints < 1 then
     return
@@ -1759,7 +1833,7 @@ function find_best_canvas_scale()
     end
   end
 
-  if canvasScale ~= scale -1 then
+  if canvasScale ~= scale - 1 then
     canvasScale = scale - 1
     print('canvas scale: ' .. canvasScale)
   end
@@ -1939,8 +2013,8 @@ function draw_tool()
     draw_wip_poly()
   end
 
-  -- draw a overlay on the polygon we are hovering over
-  if cursor.hoveredPolygon then
+  if cursor.hoveredPolygon and not cursor.dragRect then
+    -- draw a overlay on the polygon we are hovering over
     draw_shape(cursor.hoveredPolygon, hoverFlash:get_color(), true)
   end
 
@@ -1968,6 +2042,14 @@ function draw_tool()
   love.graphics.setColor(selectionFlash:get_color())
   for _, sp in pairs(selectedPoints) do
     love.graphics.points(sp.point.x + 0.5, sp.point.y + 0.5)
+  end
+
+  if cursor.dragRect then
+    love.graphics.setColor(.5, .5, .5, .5)
+    love.graphics.rectangle('line',
+      cursor.dragRect.x1, cursor.dragRect.y1,
+      cursor.dragRect.x2 - cursor.dragRect.x1 + 1,
+      cursor.dragRect.y2 - cursor.dragRect.y1 + 1)
   end
 
   love.graphics.setCanvas()
