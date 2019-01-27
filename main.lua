@@ -5,6 +5,20 @@ local picolove = require('lib.picolove')
 require('class.colorflash')
 
 -- define global constants
+CANVAS_W = 128
+CANVAS_H = 128
+PATTERN_SWATCH_CANVAS_W = 10
+PATTERN_SWATCH_CANVAS_H = 38
+PATTERN_SWATCH_W = 8
+PATTERN_SWATCH_H = 8
+PATTERN_SWATCH_ROW_H = 10
+PATTERN_BIT_BOX_SIZE = 20
+POINT_MIN_X = 0
+POINT_MAX_X = 255
+POINT_MIN_Y = -1
+POINT_MAX_Y = 254
+MAX_POLYGON_POINTS = 64
+
 MODES = {
   NORMAL = 1,
   SAVE = 2,
@@ -50,26 +64,10 @@ FILL_PATTERN_SCANCODES = {
 }
 
 function love.load(arg)
-  CANVAS_W = 128
-  CANVAS_H = 128
-  PATTERN_SWATCH_CANVAS_W = 10
-  PATTERN_SWATCH_CANVAS_H = 38
-  PATTERN_SWATCH_W = 8
-  PATTERN_SWATCH_H = 8
-  PATTERN_SWATCH_ROW_H = 10
   love.graphics.setFont(love.graphics.newFont(14))
-
-  POINT_MIN_X = 0
-  POINT_MAX_X = 255
-  POINT_MIN_Y = -1
-  POINT_MAX_Y = 254
-
-  MAX_POLYGONS = 256
-  MAX_POLYGON_POINTS = 64
+  love.keyboard.setKeyRepeat(true)
 
   canvasMargin = 50
-
-  love.keyboard.setKeyRepeat(true)
 
   palette = {}
   palette[0] = {0, 0, 0}
@@ -105,6 +103,13 @@ function love.load(arg)
     boxes = { [0] = {}, [1] = {}, [2] = {}, [3] = {} },
     outlineMargin = 2
   }
+
+  -- create a table to hold the positions of the boxes which toggle pattern
+  -- bits when in Fill-Pattern Edit mode
+  patternBitBoxes = {}
+  for i = 1, 16 do
+    patternBitBoxes[i] = {}
+  end
 
   fillPatterns = {}
   for i = 1, MAX_FILL_PATTERN_INDEX do
@@ -984,7 +989,6 @@ function love.keypressed(key, scancode)
     if pbit then
       save_undo_state()
       toggle_pattern_bit(pbit)
-      set_dirty_flag()
     end
 
     if key == 't' then
@@ -1300,6 +1304,8 @@ function toggle_pattern_bit(i)
   else
     pattern[i] = 1
   end
+
+  set_dirty_flag()
 end
 
 function toggle_pattern_transparency()
@@ -1632,6 +1638,15 @@ function get_fill_pattern_under_mouse(x, y)
   end
 end
 
+function get_pattern_bit_under_mouse(x, y)
+  for i, box in pairs(patternBitBoxes) do
+    if x >= box.x and x < box.x + box.w and
+       y >= box.y and y < box.y + box.h then
+      return i
+    end
+  end
+end
+
 -- get a table of all polygons selected or partially selected in any way (i.e.
 -- regardness of whether the the whole polygon is selected, via "select
 -- polygons" tool, or only a point of the polygon is selected, via the "select
@@ -1766,6 +1781,17 @@ function love.mousepressed(x, y, button)
         if button == 2 then
           mode = MODES.EDIT_FILL_PATTERN
         end
+      end
+    end
+  end
+
+  -- handle clicks on pattern bit boxes
+  if mode == MODES.EDIT_FILL_PATTERN then
+    if button == 1 then
+      local bitIndex = get_pattern_bit_under_mouse(x, y)
+      if bitIndex then
+        save_undo_state()
+        toggle_pattern_bit(bitIndex)
       end
     end
   end
@@ -2172,7 +2198,7 @@ function draw_status()
     if cursor.patternIndex > 0 then
       local fillPattern = fillPatterns[cursor.patternIndex]
       local yn = fillPattern.isTransparent and 'yes' or 'no'
-      love.graphics.print('  transparent secondary color: ' .. yn, x, y)
+      love.graphics.print('  transparent: ' .. yn, x, y)
       y = y + lineh
     end
   elseif selectedPolys then
@@ -2333,13 +2359,6 @@ function add_all(t, values)
 end
 
 function draw_point()
-  if #polygons == MAX_POLYGONS then
-    love.window.showMessageBox('so many!',
-      'this painting has the maximum ' .. MAX_POLYGONS .. ' polygons; ' ..
-      'no more can be added')
-    return
-  end
-
   save_undo_state()
 
   table.insert(drawingPoints,
@@ -2482,6 +2501,44 @@ function draw_fill_pattern_selector()
   end
 
   love.graphics.pop()
+end
+
+function update_pattern_bit_boxes()
+  local offset = {
+    x = paletteDisplay.x + 10,
+    y = paletteDisplay.y + (paletteDisplay.colorH * 4) + 60
+  }
+
+  local i = 1
+  for y = 0, 3 do
+    for x = 0, 3 do
+      local box = patternBitBoxes[i]
+      box.x = offset.x + (x * PATTERN_BIT_BOX_SIZE)
+      box.y = offset.y + (y * PATTERN_BIT_BOX_SIZE)
+      box.w = PATTERN_BIT_BOX_SIZE
+      box.h = PATTERN_BIT_BOX_SIZE
+
+      i = i + 1
+    end
+  end
+end
+
+function draw_pattern_bit_boxes()
+  if cursor.patternIndex == 0 then
+    return
+  end
+
+  for i, box in ipairs(patternBitBoxes) do
+    local b = fillPatterns[cursor.patternIndex].pattern[i]
+
+    if b == 0 then
+      love.graphics.setColor(1, 1, 1)
+    else
+      love.graphics.setColor(0, 0, 0)
+    end
+
+    love.graphics.rectangle('fill', box.x, box.y, box.w, box.h)
+  end
 end
 
 function draw_wip_poly()
@@ -2645,6 +2702,9 @@ function love.update()
   update_cursor()
   update_palette_display()
   update_fill_pattern_selector_position()
+  if mode == MODES.EDIT_FILL_PATTERN then
+    update_pattern_bit_boxes()
+  end
 end
 
 function love.draw()
@@ -2685,6 +2745,10 @@ function love.draw()
   draw_palette()
   render_fill_pattern_swatches() -- debug
   draw_fill_pattern_selector()
+
+  if mode == MODES.EDIT_FILL_PATTERN then
+    draw_pattern_bit_boxes()
+  end
 
   -- draw the cursor
   draw_cursor()
