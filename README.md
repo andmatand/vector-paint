@@ -199,7 +199,9 @@ directory.
 * 0: reset background image scale to initial "best fit"
 
 #### Fill-Pattern Editor Mode
-* Use the following keys to toggle the bits of the selected fill pattern:
+* To toggle the bits of the selected fill pattern, click the black/white
+  squares which are visible below the palette when in this mode
+* You can also toggle pattern bits by using the following keys:
   ```
   1234
   qwer
