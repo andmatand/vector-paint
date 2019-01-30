@@ -21,7 +21,9 @@ function _init()
 end
 
 function _update()
-  -- uncomment for a surprise :)
+  -- disable scanline caching,
+  -- and then uncomment for a
+  -- surprise :)
   --wiggle(shapes)
 end
 
@@ -29,12 +31,12 @@ function _draw()
   cls()
 
   -- draw all the shapes
-  -- with complex paintings, this is usually too slow to do every frame, so
-  -- you'll want to draw it once and not use cls() in your _draw() function or
-  -- cache the image somehow
   for shape in all(shapes) do
-    draw_shape(shape)
+    draw_shape(shape, true) -- true enables scanline caching
   end
+
+  print('cpu: ' .. stat(1) * 100 .. '%', 1, 1, 8)
+  print('mem: ' .. stat(0) .. '/2048', 1, 7, 8)
 end
 
 function store_painting(hexstr, dest)
@@ -63,7 +65,7 @@ end
 -->8
 -- vector-paint dist library
 
-function draw_shape(shape)
+function draw_shape(shape, enablecache)
   local points = shape.points
   color(shape.col)
   fillp(patterns[shape.pi])
@@ -73,7 +75,7 @@ function draw_shape(shape)
   elseif #points == 2 then
     line(points[1].x, points[1].y, points[2].x, points[2].y)
   elseif #points >= 3 then
-    fill_polygon(shape)
+    fill_polygon(shape, enablecache)
   end
 end
 
@@ -112,20 +114,30 @@ function find_intersections(points, y)
   return xlist
 end
 
-function fill_polygon(p)
-  local x1, x2, y1, y2 = find_bounds(p.points)
+function fill_polygon(p, enablecache)
+  if not p.linecache then
+    p.linecache = {}
 
-  for y = y2, y1, -1 do
-    local xlist = find_intersections(p.points, y)
-    sort(xlist)
+    local x1, x2, y1, y2 = find_bounds(p.points)
+    for y = y2, y1, -1 do
+      local xlist = find_intersections(p.points, y)
+      sort(xlist)
 
-    -- draw the scanline
-    for i = 1, #xlist - 1, 2 do
-      local x1 = flr(xlist[i])
-      local x2 = ceil(xlist[i + 1])
-
-      line(x1, y, x2, y, p.col)
+      for i = 1, #xlist - 1, 2 do
+        local x1 = flr(xlist[i])
+        local x2 = ceil(xlist[i + 1])
+        add(p.linecache, {x1 = x1, x2 = x2, y = y})
+      end
     end
+  end
+
+  -- draw the cached scanlines
+  for _, l in pairs(p.linecache) do
+    line(l.x1, l.y, l.x2, l.y, p.col)
+  end
+
+  if not enablecache then
+    p.linecache = nil
   end
 end
 
