@@ -133,7 +133,7 @@ function fill_polygon(p, enablecache)
 
   -- draw the cached scanlines
   for _, l in pairs(p.linecache) do
-    line(l.x1, l.y, l.x2, l.y, p.col)
+    rectfill(l.x1, l.y, l.x2, l.y, p.col)
   end
 
   if not enablecache then
