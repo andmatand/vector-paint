@@ -1168,16 +1168,16 @@ function love.keypressed(key, scancode)
 
   if key == '[' then
     -- push the selected polygons back by one in the stack
-    local polys = get_target_polygons()
-    for i = 1, #polys do
-      push_polygon_back(polys[i])
+    local sortedShapes = sort_shapes_by_index(get_target_polygons())
+    for i = 1, #sortedShapes do
+      push_polygon_back(sortedShapes[i])
     end
     set_dirty_flag()
   elseif key == ']' then
     -- pull the selected polygons forward by one in the stack
-    local polys = get_target_polygons()
-    for i = 1, #polys do
-      pull_polygon_forward(polys[i])
+    local sortedShapes = sort_shapes_by_index(get_target_polygons())
+    for i = #sortedShapes, 1, -1 do
+      pull_polygon_forward(sortedShapes[i])
     end
     set_dirty_flag()
   end
@@ -2257,7 +2257,8 @@ function draw_status()
     elseif #selectedPolys > 1 then
       love.graphics.print(
         'selected shapes: ' .. #selectedPolys, x, y)
-      for _, shape in ipairs(selectedPolys) do
+      local sortedShapes = sort_shapes_by_index(selectedPolys)
+      for _, shape in ipairs(sortedShapes) do
         local shapeType = shape_type(shape)
         local index = find_polygon_index(shape)
         y = y + lineh
@@ -2311,6 +2312,18 @@ function get_sorted_keys(t)
   table.sort(keys)
 
   return keys
+end
+
+function sort_shapes_by_index(shapes)
+  local sorted = shallow_copy_table(shapes)
+
+  table.sort(sorted, function (a, b)
+    local ai = find_polygon_index(a)
+    local bi = find_polygon_index(b)
+    return ai < bi
+  end)
+
+  return sorted
 end
 
 function shape_type(shape)
