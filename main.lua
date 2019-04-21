@@ -608,15 +608,18 @@ function update_cursor()
     end
 
     -- handle dragging
+    cursor.dragRect = nil
     if cursor.dragStart and distance(cursor, cursor.dragStart) > 2 then
-      cursor.dragRect = {
-        x1 = math.min(cursor.dragStart.x, cursor.x),
-        y1 = math.min(cursor.dragStart.y, cursor.y),
-        x2 = math.max(cursor.dragStart.x, cursor.x),
-        y2 = math.max(cursor.dragStart.y, cursor.y)
-      }
-    else
-      cursor.dragRect = nil
+      if cursor.tool == TOOLS.SELECT_SHAPE or cursor.isQuickSelecting then
+        cursor.dragRect = {
+          x1 = math.min(cursor.dragStart.x, cursor.x),
+          y1 = math.min(cursor.dragStart.y, cursor.y),
+          x2 = math.max(cursor.dragStart.x, cursor.x),
+          y2 = math.max(cursor.dragStart.y, cursor.y)
+        }
+      elseif cursor.tool == TOOLS.SELECT_POINT and #selectedPoints == 1 then
+        move_selected_point(selectedPoints[1], cursor)
+      end
     end
 
     if cursor.dragRect then
@@ -721,6 +724,17 @@ function find_nearest_point(cursorPos)
 
   if closest then
     return closest.point, closest.poly
+  end
+end
+
+function move_selected_point(selectedPoint, dest)
+  local point = selectedPoint.point
+
+  if point.x ~= dest.x or point.y ~= dest.y then
+    save_undo_state()
+    point.x = dest.x
+    point.y = dest.y
+    set_dirty_flag()
   end
 end
 
@@ -1487,12 +1501,15 @@ function push_primary_button()
 
   local shiftIsDown = shift_is_down()
 
-  if cursor.tool == TOOLS.SELECT_SHAPE or cursor.isQuickSelecting then
+  if cursor.tool == TOOLS.SELECT_POINT or cursor.tool == TOOLS.SELECT_SHAPE
+     or cursor.isQuickSelecting then
     cursor.dragStart = {
       x = cursor.x,
       y = cursor.y
     }
+  end
 
+  if cursor.tool == TOOLS.SELECT_SHAPE or cursor.isQuickSelecting then
     if cursor.hoveredPolygon then
       if shiftIsDown and #selectedShapes > 0 then
         add_shape_to_selection(cursor.hoveredPolygon, true)
