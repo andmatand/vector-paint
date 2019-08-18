@@ -358,7 +358,7 @@ function save_painting(filename)
   -- (love.filesystem.write does not seem to work with symlink directories :()
   local dir = love.filesystem.getSaveDirectory()
   local fullPath = love.filesystem.getSaveDirectory() .. '/' .. filename
-  local f = io.open(fullPath, 'w')
+  local f, msg = io.open(fullPath, 'w')
 
   if f then
     f:write(data)
