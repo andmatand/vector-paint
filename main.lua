@@ -663,7 +663,8 @@ function point_on_line(point, a, b)
   points = picolove.line(a.x, a.y, b.x, b.y)
 
   for _, p in pairs(points) do
-    if points_are_equal(point, {x = p[1] - 0.5, y = p[2] - 0.5}) then
+    local x, y = math.floor(p[1]), math.floor(p[2])
+    if points_are_equal(point, {x = x, y = y}) then
       return true
     end
   end

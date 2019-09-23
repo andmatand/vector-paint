@@ -15,8 +15,9 @@ function apply_pattern_to_points(points, fillPattern)
   local bgColorPoints = {}
 
   for _, p in pairs(points) do
-    local x, y = p[1], p[2]
-    local bit = get_pattern_bit(fillPattern.pattern, x - 0.5, y - 0.5)
+    local x, y = math.floor(p[1]), math.floor(p[2])
+    local bit = get_pattern_bit(fillPattern.pattern, x, y)
+
     if bit == 0 then
       table.insert(fgColorPoints, p)
     elseif not fillPattern.isTransparent then
