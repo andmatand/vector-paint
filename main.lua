@@ -660,12 +660,12 @@ function point_rect_overlap(point, rect)
 end
 
 function point_on_line(point, a, b)
-  local dist1 = distance(a, point) + distance(point, b)
-  local dist2 = distance(a, b)
+  points = picolove.line(a.x, a.y, b.x, b.y)
 
-  -- compensate for floating point inaccuracy
-  if math.abs(dist1 - dist2) <= .025 then
-    return true
+  for _, p in pairs(points) do
+    if points_are_equal(point, {x = p[1] - 0.5, y = p[2] - 0.5}) then
+      return true
+    end
   end
 end
 
