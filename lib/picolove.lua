@@ -22,18 +22,11 @@
 
 local picolove = {}
 
-local lineMesh = love.graphics.newMesh(128, "points")
-
 function flr(n)
   return math.floor(n)
 end
 
-function picolove.line(x0,y0,x1,y1, loveColor)
-  love.graphics.setPointSize(1)
-  if loveColor then
-    love.graphics.setColor(loveColor)
-  end
-
+function picolove.line(x0, y0, x1, y1)
   if x0 ~= x0 or y0 ~= y0 or x1 ~= x1 or y1 ~= y1 then
     warning("line has NaN value")
     return
@@ -43,7 +36,6 @@ function picolove.line(x0,y0,x1,y1, loveColor)
   y0 = flr(y0)
   x1 = flr(x1)
   y1 = flr(y1)
-
 
   local dx = x1 - x0
   local dy = y1 - y0
@@ -56,14 +48,14 @@ function picolove.line(x0,y0,x1,y1, loveColor)
     points = {}
     if y0 > y1 then y0,y1 = y1,y0 end
     for y=y0,y1 do
-      table.insert(points,{x0 + 0.5, y + 0.5})
+      table.insert(points, {x0 + 0.5, y + 0.5})
     end
   elseif dy == 0 then
     -- simple case draw a horizontal line
     points = {}
     if x0 > x1 then x0,x1 = x1,x0 end
     for x=x0,x1 do
-      table.insert(points,{x + 0.5, y0 + 0.5})
+      table.insert(points, {x + 0.5, y0 + 0.5})
     end
   else
     if dy < 0 then
@@ -105,9 +97,7 @@ function picolove.line(x0,y0,x1,y1, loveColor)
     end
   end
 
-  -- TODO: support fill-patterns for lines
-
-  love.graphics.points(points)
+  return points
 end
 
 return picolove

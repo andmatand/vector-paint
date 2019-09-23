@@ -3,6 +3,7 @@ local bit = require('bit')
 local picolove = require('lib.picolove')
 --local inspect = require('lib.inspect')
 require('class.colorflash')
+require('util.fillp')
 
 -- define global constants
 CANVAS_W = 128
@@ -1975,27 +1976,42 @@ function point_in_polygon(point, poly)
   return c
 end
 
-function draw_shape(poly, rgba, disableFillPattern)
-  love.graphics.setColor(rgba)
+function draw_shape(shape, rgbaOverride, disableFillPattern)
+  love.graphics.setColor(rgbaOverride or palette[shape.color])
   love.graphics.setPointSize(1)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle('rough')
 
-  if #poly.points == 1 then
+  if #shape.points == 1 then
     -- draw a point
-    love.graphics.points(poly.points[1].x + 0.5, poly.points[1].y + 0.5)
-  elseif #poly.points == 2 then
+    if rgbaOverride then
+      pset(shape.points[1].x, shape.points[1].y)
+    else
+      pset(
+        shape.points[1].x, shape.points[1].y,
+        shape.color, shape.bgColor, fillPatterns[shape.patternIndex])
+    end
+  elseif #shape.points == 2 then
     -- draw a line
-    picolove.line(
-      poly.points[1].x, poly.points[1].y,
-      poly.points[2].x, poly.points[2].y)
+    if rgbaOverride then
+      line(
+        shape.points[1].x, shape.points[1].y,
+        shape.points[2].x, shape.points[2].y)
+    else
+      line(
+        shape.points[1].x, shape.points[1].y,
+        shape.points[2].x, shape.points[2].y,
+        shape.color,
+        shape.bgColor,
+        fillPatterns[shape.patternIndex])
+    end
   else
     -- draw a polygon
-    fill_polygon(poly, disableFillPattern)
+    fill_polygon(shape, rgbaOverride and true or false, disableFillPattern)
   end
 end
 
-function fill_polygon(poly, disableFillPattern)
+function fill_polygon(poly, inheritColor, disableFillPattern)
   -- find the bounds of the polygon
   local x1, x2, y1, y2 = find_bounds(poly.points)
 
@@ -2004,38 +2020,40 @@ function fill_polygon(poly, disableFillPattern)
     local xlist = find_intersections(poly.points, y)
     table.sort(xlist)
 
+    local fillPattern = nil
+    if poly.patternIndex > 0 and not disableFillPattern then
+      fillPattern = fillPatterns[poly.patternIndex]
+    end
+
     for i = 1, #xlist - 1, 2 do
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
 
-      if poly.patternIndex > 0 and not disableFillPattern then
-        for x = x1, x2 do
-          pset(x, y, poly.color, poly.bgColor, fillPatterns[poly.patternIndex])
-        end
+      if inheritColor then
+        line(x1, y, x2, y)
       else
-        picolove.line(x1, y, x2, y)
+        line(x1, y, x2, y, poly.color, poly.bgColor, fillPattern)
       end
     end
   end
 end
 
-function get_pattern_bit(pattern, x, y)
-  x = x % 4
-  y = y % 4
-
-  local index = ((4 * y) + x) + 1
-  return pattern[index]
-end
-
 function pset(x, y, color, bgColor, fillPattern)
-  local bit = get_pattern_bit(fillPattern.pattern, x, y)
-  if bit == 0 then
-    love.graphics.setColor(palette[color])
+  if not color then
     love.graphics.points(x + 0.5, y + 0.5)
-  elseif not fillPattern.isTransparent then
-    love.graphics.setColor(palette[bgColor])
-    love.graphics.points(x + 0.5, y + 0.5)
+    return
   end
+
+  local fgColorPoints, bgColorPoints = apply_pattern_to_points(
+    {{x + 0.5, y + 0.5}},
+    fillPattern
+  )
+
+  draw_pattern_points(
+    fgColorPoints,
+    bgColorPoints,
+    palette[color],
+    palette[bgColor])
 end
 
 function render_polygons()
@@ -2046,7 +2064,7 @@ function render_polygons()
 
   for i = 1, #polygons do
     local shape = polygons[i]
-    draw_shape(shape, palette[shape.color])
+    draw_shape(shape)
   end
 
   love.graphics.setCanvas()
@@ -2596,13 +2614,34 @@ function draw_wip_poly()
     local a = points[i]
     local b = points[i + 1]
 
-    love.graphics.setColor(palette[cursor.color])
-    picolove.line(a.x, a.y, b.x, b.y)--, fillPatterns[cursor.patternIndex])
+    line(
+      a.x, a.y, b.x, b.y,
+      cursor.color, cursor.bgColor, fillPatterns[cursor.patternIndex])
 
     -- draw a flashing handle on this point
     love.graphics.setColor(selectionFlash:get_color())
     love.graphics.points(a.x + 0.5, a.y + 0.5)
   end
+end
+
+function line(x1, y1, x2, y2, color, bgColor, fillPattern)
+  local points = picolove.line(x1, y1, x2, y2)
+
+  if not color then
+    love.graphics.setPointSize(1)
+    love.graphics.points(points)
+    return
+  end
+
+  local fgColorPoints, bgColorPoints = apply_pattern_to_points(
+    points,
+    fillPattern)
+
+  draw_pattern_points(
+    fgColorPoints,
+    bgColorPoints,
+    palette[color],
+    palette[bgColor])
 end
 
 -- apply a saved undo state
