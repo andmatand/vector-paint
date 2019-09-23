@@ -1952,28 +1952,17 @@ function point_in_polygon(point, poly)
     return false
   end
 
-  local points = poly.points
-  local x = point.x
-  local y = point.y
+  local scanlines = get_polygon_scanlines(poly)
 
-  local i = 1
-  local j = #points
-  local c = false
+  for _, scanline in pairs(scanlines) do
+    local x1 = scanline.x1
+    local x2 = scanline.x2
+    local y = scanline.y
 
-  while i <= #points do
-    if ( ((points[i].y > y) ~= (points[j].y > y)) and
-          (x < (points[j].x - points[i].x) * (y - points[i].y) /
-            (points[j].y - points[i].y) + points[i].x
-          )
-       ) then
-       c = not c
+    if point.y == y and point.x >= x1 and point.x <= x2 then
+      return true
     end
-
-    j = i
-    i = i + 1
   end
-
-  return c
 end
 
 function draw_shape(shape, rgbaOverride, disableFillPattern)
@@ -2011,7 +2000,9 @@ function draw_shape(shape, rgbaOverride, disableFillPattern)
   end
 end
 
-function fill_polygon(poly, inheritColor, disableFillPattern)
+function get_polygon_scanlines(poly)
+  local lines = {}
+
   -- find the bounds of the polygon
   local x1, x2, y1, y2 = find_bounds(poly.points)
 
@@ -2020,20 +2011,33 @@ function fill_polygon(poly, inheritColor, disableFillPattern)
     local xlist = find_intersections(poly.points, y)
     table.sort(xlist)
 
-    local fillPattern = nil
-    if poly.patternIndex > 0 and not disableFillPattern then
-      fillPattern = fillPatterns[poly.patternIndex]
-    end
-
     for i = 1, #xlist - 1, 2 do
       local x1 = math.floor(xlist[i])
       local x2 = math.ceil(xlist[i + 1])
+      table.insert(lines, {x1 = x1, x2 = x2, y = y})
+    end
+  end
 
-      if inheritColor then
-        line(x1, y, x2, y)
-      else
-        line(x1, y, x2, y, poly.color, poly.bgColor, fillPattern)
-      end
+  return lines
+end
+
+function fill_polygon(poly, inheritColor, disableFillPattern)
+  local fillPattern = nil
+  if poly.patternIndex > 0 and not disableFillPattern then
+    fillPattern = fillPatterns[poly.patternIndex]
+  end
+
+  local scanlines = get_polygon_scanlines(poly)
+
+  for _, scanline in ipairs(scanlines) do
+    local x1 = scanline.x1
+    local x2 = scanline.x2
+    local y = scanline.y
+
+    if inheritColor then
+      line(x1, y, x2, y)
+    else
+      line(x1, y, x2, y, poly.color, poly.bgColor, fillPattern)
     end
   end
 end
