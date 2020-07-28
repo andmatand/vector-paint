@@ -284,9 +284,9 @@ function get_painting_data()
     for _, fillPattern in ipairs(usedFillPatterns) do
       local patternBytes = convert_pattern_array_to_bytes(fillPattern.pattern)
       local byte1 = bit.rshift(
-        bit.band(patternBytes, 0b1111111100000000),
+        bit.band(patternBytes, 0xff00),
         8)
-      local byte2 = bit.band(patternBytes, 0b0000000011111111)
+      local byte2 = bit.band(patternBytes, 0x00ff)
 
       table.insert(bytes, byte1)
       table.insert(bytes, byte2)
@@ -296,7 +296,7 @@ function get_painting_data()
     local transparencyByte = 0
     for i, fillPattern in ipairs(usedFillPatterns) do
       if fillPattern.isTransparent then
-        local newBit = bit.rshift(0b10000000, i - 1)
+        local newBit = bit.rshift(0x80, i - 1)
         transparencyByte = bit.bor(transparencyByte, newBit)
       end
     end
@@ -318,7 +318,7 @@ function convert_pattern_array_to_bytes(pattern)
   local bytes = 0
   for i, pbit in ipairs(pattern) do
     if pbit == 1 then
-      local mask = bit.rshift(0b1000000000000000, i - 1)
+      local mask = bit.rshift(0x8000, i - 1)
       bytes = bit.bor(bytes, mask)
     end
   end
@@ -328,7 +328,7 @@ end
 function convert_pattern_bytes_to_array(pattern)
   local array = {}
   for i = 1, 16 do
-    local mask = bit.rshift(0b1000000000000000, i - 1)
+    local mask = bit.rshift(0x8000, i - 1)
     local b = bit.rshift(bit.band(mask, pattern), 16 - i)
     table.insert(array, b)
   end
@@ -448,8 +448,8 @@ function parse_painting(reader)
 
     -- read the fill-pattern index and point count
     local byte1 = reader:get_next_byte()
-    shape.patternIndex = bit.rshift(bit.band(byte1, 0b11000000), 6)
-    local pointCount = bit.band(byte1, 0b00111111)
+    shape.patternIndex = bit.rshift(bit.band(byte1, 0xc0), 6)
+    local pointCount = bit.band(byte1, 0x3f)
 
     -- update running pattern count
     patternCount = math.max(patternCount, shape.patternIndex)
@@ -457,8 +457,8 @@ function parse_painting(reader)
 
     -- read the color
     local colorByte = reader:get_next_byte()
-    shape.color = bit.band(colorByte, 0b00001111)
-    shape.bgColor = bit.rshift(bit.band(colorByte, 0b11110000), 4)
+    shape.color = bit.band(colorByte, 0x0f)
+    shape.bgColor = bit.rshift(bit.band(colorByte, 0xf0), 4)
 
     -- read each point
     for i = 1, pointCount do
@@ -484,7 +484,7 @@ function parse_painting(reader)
     end
     local byte = reader:get_next_byte()
     for i = 1, patternCount do
-      local mask = bit.rshift(0b10000000, i - 1)
+      local mask = bit.rshift(0x80, i - 1)
       local b = bit.band(byte, mask)
       fillPatterns[i].isTransparent = (b > 0 and true or false)
     end
