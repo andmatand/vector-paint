@@ -355,19 +355,29 @@ end
 function save_painting(filename)
   local data = get_painting_data()
 
-  -- use io.open in order to support writing when the directory is a symlink
-  -- (love.filesystem.write does not seem to work with symlink directories :()
-  local dir = love.filesystem.getSaveDirectory()
-  local fullPath = love.filesystem.getSaveDirectory() .. '/' .. filename
-  local f, msg = io.open(fullPath, 'w')
+  -- set this to true if the directory is a symlink (in which case we have to
+  -- use io.open in order to support writing)
+  local supportSymlinkDirectory = false
 
-  if f then
-    f:write(data)
-    f:close()
-    print('saved to ' .. fullPath)
+  if supportSymlinkDirectory then
+    local dir = love.filesystem.getSaveDirectory()
+    local fullPath = love.filesystem.getSaveDirectory() .. '/' .. filename
+    local f, msg = io.open(fullPath, 'w')
+
+    if f then
+      f:write(data)
+      f:close()
+      print('saved to ' .. fullPath)
+    else
+      love.window.showMessageBox('nooooo :(', 'ERROR SAVING: ' .. msg, 'error')
+    end
   else
-    love.window.showMessageBox('nooooo :(', 'ERROR SAVING: ' .. msg, 'error')
+    local success, msg = love.filesystem.write(filename, data)
+    if not success then
+      love.window.showMessageBox('nooooo :(', 'ERROR SAVING: ' .. msg, 'error')
+    end
   end
+
 end
 
 function create_painting_reader(data)
