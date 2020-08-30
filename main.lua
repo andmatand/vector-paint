@@ -67,6 +67,7 @@ FILL_PATTERN_SCANCODES = {
 function love.load(arg)
   love.graphics.setFont(love.graphics.newFont(14))
   love.keyboard.setKeyRepeat(true)
+  love.window.setDisplaySleepEnabled(true)
 
   canvasMargin = 50
 
