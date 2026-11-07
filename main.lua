@@ -1,6 +1,5 @@
 local utf8 = require('utf8')
 local bit = require('bit')
-local picolove = require('lib.picolove')
 --local inspect = require('lib.inspect')
 require('class.colorflash')
 require('util.fillp')
@@ -671,7 +670,7 @@ function point_rect_overlap(point, rect)
 end
 
 function point_on_line(point, a, b)
-  points = picolove.line(a.x, a.y, b.x, b.y)
+  points = bresenham_line(a.x, a.y, b.x, b.y)
 
   for _, p in pairs(points) do
     local x, y = math.floor(p[1]), math.floor(p[2])
@@ -679,6 +678,41 @@ function point_on_line(point, a, b)
       return true
     end
   end
+end
+
+function bresenham_line(x0, y0, x1, y1)
+  local points = {}
+
+  local x0 = math.floor(x0)
+  local y0 = math.floor(y0)
+  local x1 = math.floor(x1)
+  local y1 = math.floor(y1)
+
+  local dx = math.abs(x1 - x0)
+  local dy = math.abs(y1 - y0)
+  local sx, sy
+  if x0 < x1 then sx = 1 else sx = -1 end
+  if y0 < y1 then sy = 1 else sy = -1 end
+  local err = dx - dy
+
+  while true do
+    table.insert(points, {x0, y0})
+
+    if x0 == x1 and y0 == y1 then
+      break
+    end
+    local e2 = 2 * err
+    if e2 > -dy then
+      err = err - dy
+      x0 = x0 + sx
+    end
+    if e2 < dx then
+      err = err + dx
+      y0 = y0 + sy
+    end
+  end
+
+  return points
 end
 
 function points_are_equal(a, b)
@@ -2641,7 +2675,7 @@ function draw_wip_poly()
 end
 
 function line(x1, y1, x2, y2, color, bgColor, fillPattern)
-  local points = picolove.line(x1, y1, x2, y2)
+  local points = bresenham_line(x1, y1, x2, y2)
 
   if not color then
     love.graphics.setPointSize(1)
