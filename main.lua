@@ -696,7 +696,7 @@ function bresenham_line(x0, y0, x1, y1)
   local err = dx - dy
 
   while true do
-    table.insert(points, {x0, y0})
+    table.insert(points, {x0 + 0.5, y0 + 0.5})
 
     if x0 == x1 and y0 == y1 then
       break
@@ -2081,9 +2081,9 @@ function fill_polygon(poly, inheritColor, disableFillPattern)
     local y = scanline.y
 
     if inheritColor then
-      line(x1, y, x2, y)
+      rectfill(x1, y, x2, y)
     else
-      line(x1, y, x2, y, poly.color, poly.bgColor, fillPattern)
+      rectfill(x1, y, x2, y, poly.color, poly.bgColor, fillPattern)
     end
   end
 end
@@ -2676,7 +2676,21 @@ end
 
 function line(x1, y1, x2, y2, color, bgColor, fillPattern)
   local points = bresenham_line(x1, y1, x2, y2)
+  draw_points(points, color, bgColor, fillPattern)
+end
 
+function rectfill(x1, y1, x2, y2, color, bgColor, fillPattern)
+  local points = {}
+  for y = y1, y2 do
+    for x = x1, x2 do
+      table.insert(points, {x + 0.5, y + 0.5})
+    end
+  end
+
+  draw_points(points, color, bgColor, fillPattern)
+end
+
+function draw_points(points, color, bgColor, fillPattern)
   if not color then
     love.graphics.setPointSize(1)
     love.graphics.points(points)
